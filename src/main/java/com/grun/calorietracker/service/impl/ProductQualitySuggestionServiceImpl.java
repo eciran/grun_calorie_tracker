@@ -1365,7 +1365,10 @@ public class ProductQualitySuggestionServiceImpl implements ProductQualitySugges
                 requireNotAbove(value, product.getFat(), "transFat", "fat");
             }
             case "sugaralcohol" -> parseBoundedDouble(suggestedValue, "sugarAlcohol", 0.0, 100.0);
-            case "sodium" -> parseBoundedDouble(suggestedValue, "sodium", 0.0, 10.0);
+            case "sodium" -> parseBoundedDouble(
+                    suggestedValue, "sodium", 0.0,
+                    com.grun.calorietracker.service.support.NutritionValueNormalizer.MAX_SODIUM_MG
+            );
             case "potassium", "cholesterol", "calcium", "iron", "magnesium", "zinc",
                     "vitamina", "vitaminc", "vitamind", "vitamine", "vitaminb12" ->
                     parseBoundedDouble(suggestedValue, fieldName, 0.0, 100.0);

@@ -46,6 +46,7 @@ import com.grun.calorietracker.service.support.FoodLiquidUnitClassifier;
 import com.grun.calorietracker.service.support.FoodCategoryImportResolutionService;
 import com.grun.calorietracker.service.support.FoodProductQualityRules;
 import com.grun.calorietracker.service.support.NutritionValueNormalizer;
+import com.grun.calorietracker.service.support.FoodPackageMeasureRules;
 import com.grun.calorietracker.service.support.FoodNutritionUnitContract;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
@@ -98,7 +99,8 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
             "saturated_fat", "saturatedfat", "saturated_fat_100g", "saturatedfat_100g",
             "trans_fat", "transfat", "trans_fat_100g", "transfat_100g",
             "sugar_alcohol", "sugaralcohol", "sugar_alcohol_100g", "sugaralcohol_100g",
-            "servingsizegrams", "serving_size_grams", "serving_quantity");
+            "servingsizegrams", "serving_size_grams", "serving_quantity",
+            "package_quantity", "packageamount", "package_amount", "product_quantity");
 
     private final FoodItemRepository foodItemRepository;
     private final FoodItemLocalizationRepository foodItemLocalizationRepository;
@@ -443,7 +445,7 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
                 ServingOptionsParseResult servingOptions = parseServingOptions(row, referenceUnit);
                 if (servingOptionsJson == null || !servingOptions.valid() || servingOptions.options().isEmpty()) {
                     throw new IllegalArgumentException(
-                            "PER_SERVING nutrition requires exactly one default native serving option."
+                            "PER_SERVING nutrition requires at least one valid native serving option."
                     );
                 }
             }
@@ -612,6 +614,7 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         product.setTransFat(NutritionValueNormalizer.macro(parseDouble(product.getTransFat(), row, "trans_fat", "transfat", "trans_fat_100g", "transfat_100g")));
         product.setSugarAlcohol(NutritionValueNormalizer.macro(parseDouble(product.getSugarAlcohol(), row, "sugar_alcohol", "sugaralcohol", "sugar_alcohol_100g", "sugaralcohol_100g")));
         product.setServingSizeGrams(parseServingSizeGrams(row, product.getServingSizeGrams()));
+        applyPackageMetadata(product, row);
         String servingUnit = resolveServingUnit(row);
         if (servingUnit != null) {
             product.setServingUnit(servingUnit);
@@ -621,6 +624,11 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         }
 
         updateQualityMetadata(product, importMode);
+        ServingOptionsParseResult importedServingOptions = parseServingOptions(row, referenceUnit);
+        boolean adminApprovedServingOptions = importMode == FoodProductImportMode.CURATED_ADMIN
+                && firstText(row, "serving_options_json", "servingoptionsjson", "portion_options_json") != null
+                && importedServingOptions.valid()
+                && !importedServingOptions.options().isEmpty();
         if (FoodProductQualityRules.hasCriticalIssue(product) || !knownReferenceUnit
                 || FoodCatalogNamingRules.requiresManualDisplayReview(product.getDisplayName())
                 || FoodCatalogNamingRules.requiresManualDisplayReview(product.getShortDisplayName())
@@ -632,7 +640,7 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
                 || (isUsdaRow(row) && (sourceDataType == null
                     || "Experimental".equals(sourceDataType)
                     || (catalogType == FoodCatalogType.BRANDED_PRODUCT && normalizedBarcode == null)))) {
-            if (importMode == FoodProductImportMode.CURATED_ADMIN) {
+            if (importMode == FoodProductImportMode.CURATED_ADMIN && !adminApprovedServingOptions) {
                 product.setVerificationStatus(VerificationStatus.NEEDS_REVIEW);
             }
             product.setPublicationStatus(CatalogPublicationStatus.INTERNAL_REVIEW);
@@ -698,6 +706,7 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         product.setSaturatedFat(NutritionValueNormalizer.macro(parseDouble(product.getSaturatedFat(), row, "saturated_fat", "saturatedfat", "saturated_fat_100g", "saturatedfat_100g")));
         product.setTransFat(NutritionValueNormalizer.macro(parseDouble(product.getTransFat(), row, "trans_fat", "transfat", "trans_fat_100g", "transfat_100g")));
         product.setSugarAlcohol(NutritionValueNormalizer.macro(parseDouble(product.getSugarAlcohol(), row, "sugar_alcohol", "sugaralcohol", "sugar_alcohol_100g", "sugaralcohol_100g")));
+        applyPackageMetadata(product, row);
 
         String servingUnit = resolveServingUnit(row);
         if (referenceUnit == FoodNutritionReferenceUnit.PER_100ML) {
@@ -1630,7 +1639,7 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
                 FoodItemServingOptionEntity option =
                         optionsByLabel.getOrDefault(key, new FoodItemServingOptionEntity());
                 option.setFoodItem(product);
-                option.setLabel(FoodProductNormalizationRules.normalizeText(definition.label()));
+                option.setLabel(normalizeServingOptionLabel(definition.label(), null));
                 option.setUnitType(parseServingOptionUnit(definition.unitType()));
                 option.setQuantity(definition.quantity() == null ? 1.0 : definition.quantity());
                 option.setGramWeight(positiveOrNull(definition.gramWeight()));
@@ -1646,7 +1655,8 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
                 option.setSource(product.getDataSource() == FoodDataSource.OPEN_FOOD_FACTS
                         ? FoodServingOptionSource.OPEN_FOOD_FACTS
                         : FoodServingOptionSource.ADMIN);
-                option.setQualityStatus(product.getVerificationStatus() == VerificationStatus.VERIFIED
+                option.setQualityStatus(importMode == FoodProductImportMode.CURATED_ADMIN
+                        || product.getVerificationStatus() == VerificationStatus.VERIFIED
                         ? FoodServingOptionQualityStatus.VERIFIED
                         : FoodServingOptionQualityStatus.NEEDS_REVIEW);
                 optionsByLabel.put(key, option);
@@ -1709,7 +1719,7 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
                 }
                 for (Map.Entry<String, String> entry : definition.labels().entrySet()) {
                     PreferredLanguage language = parsePreferredLanguage(entry.getKey());
-                    String label = FoodProductNormalizationRules.normalizeText(entry.getValue());
+                    String label = normalizeServingOptionLabel(entry.getValue(), language);
                     String key = servingLocalizationKey(savedOption.getId(), language);
                     FoodItemServingOptionLocalizationEntity localization = existingByOptionAndLanguage
                             .getOrDefault(key, new FoodItemServingOptionLocalizationEntity());
@@ -1750,6 +1760,10 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         } catch (IllegalArgumentException exception) {
             return null;
         }
+    }
+
+    private String normalizeServingOptionLabel(String value, PreferredLanguage language) {
+        return FoodProductNormalizationRules.normalizeProductDisplayName(value, language);
     }
     private ServingOptionsParseResult parseServingOptions(
             CsvRow row,
@@ -1804,9 +1818,7 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
                     defaultCount++;
                 }
             }
-            if (defaultCount > 1
-                    || (nutritionReferenceUnit == FoodNutritionReferenceUnit.PER_SERVING
-                        && !options.isEmpty() && defaultCount != 1)) {
+            if (defaultCount > 1) {
                 return new ServingOptionsParseResult(List.of(), false);
             }
             return new ServingOptionsParseResult(options, true);
@@ -2153,6 +2165,24 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
             return "g";
         }
         return null;
+    }
+
+    private void applyPackageMetadata(FoodItemEntity product, CsvRow row) {
+        String explicitQuantity = firstText(row, "package_quantity", "packageamount", "package_amount");
+        String explicitUnit = firstText(row, "package_unit", "packageunit");
+        String quantityText = firstText(row, "quantity", "package_size", "packagesize");
+        FoodPackageMeasureRules.PackageMeasure measure = explicitQuantity != null || explicitUnit != null
+                ? FoodPackageMeasureRules.resolve(explicitQuantity, explicitUnit, quantityText)
+                : FoodPackageMeasureRules.resolveSource(
+                        firstText(row, "product_quantity"),
+                        firstText(row, "product_quantity_unit"),
+                        quantityText
+                );
+        if (measure == null) {
+            return;
+        }
+        product.setPackageQuantity(measure.quantity());
+        product.setPackageUnit(measure.unit());
     }
 
     private Set<String> resolveSourceCategoryTags(CsvRow row) {

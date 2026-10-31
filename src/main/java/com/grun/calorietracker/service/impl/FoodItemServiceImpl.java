@@ -1,6 +1,7 @@
 package com.grun.calorietracker.service.impl;
 
 import com.grun.calorietracker.dto.FoodProductDto;
+import com.grun.calorietracker.dto.FoodProductPackageVariantDto;
 import com.grun.calorietracker.dto.FoodProductSearchPageDto;
 import com.grun.calorietracker.dto.FoodSearchCriteriaDto;
 import com.grun.calorietracker.entity.FoodCanonicalResolutionEntity;
@@ -11,6 +12,7 @@ import com.grun.calorietracker.entity.FoodItemSearchAliasEntity;
 import com.grun.calorietracker.entity.FoodItemServingOptionEntity;
 import com.grun.calorietracker.entity.FoodItemServingOptionLocalizationEntity;
 import com.grun.calorietracker.entity.FoodProductQualityIssueEntity;
+import com.grun.calorietracker.entity.FoodProductFamilyMemberEntity;
 import com.grun.calorietracker.entity.FoodBrandedDuplicateSearchCollapseMemberEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.enums.CatalogPublicationStatus;
@@ -32,6 +34,7 @@ import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.FoodItemLocalizationRepository;
 import com.grun.calorietracker.repository.FoodItemServingOptionRepository;
 import com.grun.calorietracker.repository.FoodItemServingOptionLocalizationRepository;
+import com.grun.calorietracker.repository.FoodProductFamilyMemberRepository;
 import com.grun.calorietracker.service.FoodItemService;
 import com.grun.calorietracker.service.CatalogPublicationService;
 import com.grun.calorietracker.service.OpenFoodFactsService;
@@ -82,6 +85,7 @@ public class FoodItemServiceImpl implements FoodItemService {
     private final CatalogPublicationService catalogPublicationService;
     private PostgresFoodSearchCandidateProvider postgresFoodSearchCandidateProvider;
     private ExternalFoodImportFence externalFoodImportFence;
+    private FoodProductFamilyMemberRepository foodProductFamilyMemberRepository;
     public FoodItemServiceImpl(
             FoodItemRepository foodItemRepository,
             FoodItemLocalizationRepository foodItemLocalizationRepository,
@@ -110,6 +114,11 @@ public class FoodItemServiceImpl implements FoodItemService {
     @Autowired
     void setExternalFoodImportFence(ExternalFoodImportFence fence) {
         this.externalFoodImportFence = fence;
+    }
+
+    @Autowired(required = false)
+    public void setFoodProductFamilyMemberRepository(FoodProductFamilyMemberRepository repository) {
+        this.foodProductFamilyMemberRepository = repository;
     }
 
     @Override
@@ -231,6 +240,20 @@ public class FoodItemServiceImpl implements FoodItemService {
                     criteriaBuilder.isTrue(brandedCollapseMember.get("collapse").get("active"))
             );
             predicates.add(criteriaBuilder.not(criteriaBuilder.exists(brandedCollapseSubquery)));
+
+            var familyMemberSubquery = query.subquery(Long.class);
+            var familyMember = familyMemberSubquery.from(FoodProductFamilyMemberEntity.class);
+            familyMemberSubquery.select(familyMember.get("id"));
+            familyMemberSubquery.where(
+                    criteriaBuilder.equal(familyMember.get("foodItem"), root),
+                    criteriaBuilder.isTrue(familyMember.get("active")),
+                    criteriaBuilder.isTrue(familyMember.get("family").get("active")),
+                    criteriaBuilder.notEqual(
+                            familyMember.get("family").get("representativeFoodItem"),
+                            root
+                    )
+            );
+            predicates.add(criteriaBuilder.not(criteriaBuilder.exists(familyMemberSubquery)));
 
             var canonicalResolutionSubquery = query.subquery(String.class);
             predicates.add(criteriaBuilder.not(criteriaBuilder.exists(
@@ -1377,7 +1400,7 @@ public class FoodItemServiceImpl implements FoodItemService {
                 loadLocalizations(productIds, language);
         Map<Long, Map<PreferredLanguage, FoodItemServingOptionLocalizationEntity>> servingLocalizationsByOptionId =
                 loadServingOptionLocalizations(servingOptionsByProductId, language);
-        dto.setContent(content.stream()
+        List<FoodProductDto> mappedContent = content.stream()
                 .map(product -> toProductDto(
                         product,
                         language,
@@ -1385,7 +1408,14 @@ public class FoodItemServiceImpl implements FoodItemService {
                         resolveLocalization(localizationsByProductId.get(product.getId()), language),
                         servingLocalizationsByOptionId
                 ))
-                .toList());
+                .toList();
+        Map<Long, ProductFamilyView> familiesByProductId = loadProductFamilies(productIds);
+        mappedContent.forEach(product -> applyProductFamily(
+                product,
+                familiesByProductId.get(product.getId()),
+                true
+        ));
+        dto.setContent(mappedContent);
         dto.setPage(products.getNumber());
         dto.setSize(products.getSize());
         dto.setTotalElements(products.getTotalElements());
@@ -1548,8 +1578,72 @@ Map<Long, Map<PreferredLanguage, FoodItemServingOptionLocalizationEntity>> servi
                         servingOptions.stream().map(FoodItemServingOptionEntity::getId).filter(Objects::nonNull).toList(),
                         language
                 );
-        return toProductDto(product, language, servingOptions, localization, servingLocalizations);
+        FoodProductDto dto = toProductDto(product, language, servingOptions, localization, servingLocalizations);
+        applyProductFamily(dto, loadProductFamilies(List.of(product.getId())).get(product.getId()), false);
+        return dto;
     }
+
+    private Map<Long, ProductFamilyView> loadProductFamilies(List<Long> productIds) {
+        Map<Long, ProductFamilyView> result = new HashMap<>();
+        if (foodProductFamilyMemberRepository == null || productIds.isEmpty()) {
+            return result;
+        }
+        Map<Long, List<FoodProductFamilyMemberEntity>> membersByFamily = new java.util.LinkedHashMap<>();
+        foodProductFamilyMemberRepository.findActiveFamilyMembersForProducts(productIds)
+                .forEach(member -> membersByFamily
+                        .computeIfAbsent(member.getFamily().getId(), ignored -> new ArrayList<>())
+                        .add(member));
+        membersByFamily.values().forEach(members -> {
+            var family = members.get(0).getFamily();
+            ProductFamilyView view = new ProductFamilyView(family, List.copyOf(members));
+            members.forEach(member -> result.put(member.getFoodItem().getId(), view));
+            result.put(family.getRepresentativeFoodItem().getId(), view);
+        });
+        return result;
+    }
+
+    private void applyProductFamily(FoodProductDto dto, ProductFamilyView view, boolean searchPresentation) {
+        if (dto == null || view == null) {
+            return;
+        }
+        var family = view.family();
+        dto.setProductFamilyId(family.getId());
+        dto.setProductFamilyKey(family.getFamilyKey());
+        dto.setProductFamilyDisplayName(family.getDisplayName());
+        dto.setProductFamilyRepresentative(Objects.equals(
+                family.getRepresentativeFoodItem().getId(), dto.getId()
+        ));
+        if (searchPresentation && family.getDisplayName() != null && !family.getDisplayName().isBlank()) {
+            dto.setDisplayName(family.getDisplayName());
+            dto.setShortDisplayName(family.getDisplayName());
+            dto.setProductName(family.getDisplayName());
+        }
+        dto.setPackageVariants(view.members().stream().map(member -> {
+            FoodItemEntity variant = member.getFoodItem();
+            return new FoodProductPackageVariantDto(
+                    variant.getId(),
+                    variant.getBarcode(),
+                    FoodProductNormalizationRules.normalizeProductDisplayName(
+                            variant.getDisplayName() != null ? variant.getDisplayName() : variant.getName()
+                    ),
+                    member.getPackageQuantity().doubleValue(),
+                    member.getPackageUnit(),
+                    member.getPackageLabel(),
+                    Objects.equals(variant.getId(), dto.getId()),
+                    member.isDefaultVariant(),
+                    variant.getNutritionReferenceUnit(),
+                    variant.getCalories(),
+                    variant.getProtein(),
+                    variant.getCarbs(),
+                    variant.getFat()
+            );
+        }).toList());
+    }
+
+    private record ProductFamilyView(
+            com.grun.calorietracker.entity.FoodProductFamilyEntity family,
+            List<FoodProductFamilyMemberEntity> members
+    ) {}
 
     private FoodProductDto toProductDto(
             FoodItemEntity product,

@@ -26,6 +26,8 @@ import com.grun.calorietracker.entity.FoodCanonicalResolutionEntity;
 import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.FoodItemLocalizationEntity;
 import com.grun.calorietracker.entity.FoodItemSearchAliasEntity;
+import com.grun.calorietracker.entity.FoodItemServingOptionEntity;
+import com.grun.calorietracker.entity.FoodItemServingOptionLocalizationEntity;
 import com.grun.calorietracker.entity.FoodProductQualityIssueEntity;
 import com.grun.calorietracker.entity.FoodProductReviewAuditEntity;
 import com.grun.calorietracker.enums.FoodCanonicalResolutionState;
@@ -38,6 +40,9 @@ import com.grun.calorietracker.enums.FoodProductQualityIssue;
 import com.grun.calorietracker.enums.FoodPreparationState;
 import com.grun.calorietracker.enums.FoodProductReviewAuditAction;
 import com.grun.calorietracker.enums.FoodSearchAliasType;
+import com.grun.calorietracker.enums.FoodServingOptionQualityStatus;
+import com.grun.calorietracker.enums.FoodServingOptionSource;
+import com.grun.calorietracker.enums.FoodServingOptionUnit;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.PreferredLanguage;
@@ -49,6 +54,8 @@ import com.grun.calorietracker.repository.FoodCanonicalResolutionRepository;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.FoodItemLocalizationRepository;
 import com.grun.calorietracker.repository.FoodItemSearchAliasRepository;
+import com.grun.calorietracker.repository.FoodItemServingOptionRepository;
+import com.grun.calorietracker.repository.FoodItemServingOptionLocalizationRepository;
 import com.grun.calorietracker.repository.FoodLogsRepository;
 import com.grun.calorietracker.repository.FoodProductQualityIssueRepository;
 import com.grun.calorietracker.repository.FoodProductReviewAuditRepository;
@@ -76,6 +83,11 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -97,6 +109,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class FoodProductReviewServiceImpl implements FoodProductReviewService {
+    private static final Logger log = LoggerFactory.getLogger(FoodProductReviewServiceImpl.class);
+    private static final int CORRECTION_IMPORT_PROGRESS_INTERVAL = 500;
 
     private final FoodItemRepository foodItemRepository;
     private final FoodItemLocalizationRepository foodItemLocalizationRepository;
@@ -105,8 +119,11 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
     private final FoodProductReviewAuditRepository foodProductReviewAuditRepository;
     private final FoodProductQualityIssueRepository foodProductQualityIssueRepository;
     private final FoodItemSearchAliasRepository foodItemSearchAliasRepository;
+    private final FoodItemServingOptionRepository foodItemServingOptionRepository;
+    private final FoodItemServingOptionLocalizationRepository foodItemServingOptionLocalizationRepository;
     private final FoodCanonicalResolutionRepository foodCanonicalResolutionRepository;
     private final FoodProductQualityIssueTracker foodProductQualityIssueTracker;
+    private final ObjectMapper objectMapper;
     private ExternalFoodImportFence externalFoodImportFence;
 
     @Autowired
@@ -126,8 +143,11 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
             FoodProductReviewAuditRepository foodProductReviewAuditRepository,
             FoodProductQualityIssueRepository foodProductQualityIssueRepository,
             FoodItemSearchAliasRepository foodItemSearchAliasRepository,
+            FoodItemServingOptionRepository foodItemServingOptionRepository,
+            FoodItemServingOptionLocalizationRepository foodItemServingOptionLocalizationRepository,
             FoodCanonicalResolutionRepository foodCanonicalResolutionRepository,
-            FoodProductQualityIssueTracker foodProductQualityIssueTracker
+            FoodProductQualityIssueTracker foodProductQualityIssueTracker,
+            ObjectMapper objectMapper
     ) {
         this.foodItemRepository = foodItemRepository;
         this.foodItemLocalizationRepository = foodItemLocalizationRepository;
@@ -136,8 +156,11 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
         this.foodProductReviewAuditRepository = foodProductReviewAuditRepository;
         this.foodProductQualityIssueRepository = foodProductQualityIssueRepository;
         this.foodItemSearchAliasRepository = foodItemSearchAliasRepository;
+        this.foodItemServingOptionRepository = foodItemServingOptionRepository;
+        this.foodItemServingOptionLocalizationRepository = foodItemServingOptionLocalizationRepository;
         this.foodCanonicalResolutionRepository = foodCanonicalResolutionRepository;
         this.foodProductQualityIssueTracker = foodProductQualityIssueTracker;
+        this.objectMapper = objectMapper;
     }
     @Override
     @Transactional(readOnly = true)
@@ -1065,11 +1088,16 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
             throw new IllegalArgumentException("CSV file is required.");
         }
 
+        String operationId = UUID.randomUUID().toString();
+        long startedAtNanos = System.nanoTime();
         int totalRows = 0;
         int updatedRows = 0;
         int candidateRows = 0;
+        int processedRows = 0;
         List<String> errors = new ArrayList<>();
         List<CsvCorrectionRow> rows = new ArrayList<>();
+        log.info("product_correction_import_started operationId={} dryRun={} markVerified={} fileSizeBytes={}",
+                operationId, dryRun, markVerified, file.getSize());
 
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8))) {
             String headerLine = reader.readLine();
@@ -1086,6 +1114,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
                 totalRows++;
                 rows.add(new CsvCorrectionRow(totalRows + 1, headers, parseDelimitedLine(line, delimiter)));
             }
+            log.info("product_correction_import_parsed operationId={} totalRows={}", operationId, totalRows);
 
             // Exported correction files contain product ids. Loading those products in one query
             // keeps large dry runs below the load balancer timeout instead of issuing one lookup
@@ -1101,6 +1130,12 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
                     FoodItemEntity product = resolveCorrectionProduct(row, dryRunProductsById, dryRun);
                     FoodProductReviewRequestDto request = toCorrectionRequest(row);
                     CorrectionDisplayNames displayNames = correctionDisplayNames(row);
+                    List<CorrectionServingOption> servingOptions = parseCorrectionServingOptions(
+                            row,
+                            request.getNutritionReferenceUnit() == null
+                                    ? product.getNutritionReferenceUnit()
+                                    : request.getNutritionReferenceUnit()
+                    );
                     if (markVerified) {
                         request.setVerificationStatus(VerificationStatus.VERIFIED);
                     }
@@ -1109,6 +1144,9 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
                     } else {
                         updateProductReview(product.getId(), request, reviewedBy);
                         applyCorrectionDisplayNames(product, displayNames, reviewedBy, request.getReviewNote());
+                        if (hasCorrectionServingOptions(row)) {
+                            replaceCorrectionServingOptions(product, servingOptions);
+                        }
                         updatedRows++;
                     }
                 } catch (DataAccessException ex) {
@@ -1119,12 +1157,27 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
                         errors.add("Row " + row.rowNumber() + ": " + ex.getMessage());
                     }
                 }
+                processedRows++;
+                if (processedRows % CORRECTION_IMPORT_PROGRESS_INTERVAL == 0 || processedRows == totalRows) {
+                    log.info("product_correction_import_progress operationId={} processedRows={} totalRows={} successfulRows={} errors={}",
+                            operationId, processedRows, totalRows, dryRun ? candidateRows : updatedRows, errors.size());
+                }
             }
         } catch (IOException ex) {
+            log.warn("product_correction_import_failed operationId={} dryRun={} processedRows={} totalRows={} durationMs={} reason=csv_read_error",
+                    operationId, dryRun, processedRows, totalRows, (System.nanoTime() - startedAtNanos) / 1_000_000);
             throw new IllegalArgumentException("CSV file could not be read.");
+        } catch (RuntimeException ex) {
+            log.error("product_correction_import_failed operationId={} dryRun={} processedRows={} totalRows={} durationMs={} exceptionType={}",
+                    operationId, dryRun, processedRows, totalRows, (System.nanoTime() - startedAtNanos) / 1_000_000,
+                    ex.getClass().getSimpleName());
+            throw ex;
         }
 
         int successfulRows = dryRun ? candidateRows : updatedRows;
+        long durationMs = (System.nanoTime() - startedAtNanos) / 1_000_000;
+        log.info("product_correction_import_completed operationId={} dryRun={} totalRows={} successfulRows={} skippedRows={} errors={} durationMs={}",
+                operationId, dryRun, totalRows, successfulRows, totalRows - successfulRows, errors.size(), durationMs);
         return new FoodProductNutritionCorrectionImportResultDto(totalRows, updatedRows, totalRows - successfulRows, errors, dryRun, candidateRows);
     }
 
@@ -1168,6 +1221,26 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
         );
         StringBuilder csv = new StringBuilder();
         List<FoodItemEntity> exportedProducts = products.getContent();
+        Map<Long, List<FoodItemServingOptionEntity>> servingOptions = exportedProducts.isEmpty()
+                ? Map.of()
+                : foodItemServingOptionRepository
+                    .findByFoodItemIdInOrderByFoodItemIdAscIsDefaultDescLabelAsc(
+                            exportedProducts.stream().map(FoodItemEntity::getId).toList())
+                    .stream().collect(Collectors.groupingBy(option -> option.getFoodItem().getId()));
+        List<Long> servingOptionIds = servingOptions.values().stream().flatMap(List::stream)
+                .map(FoodItemServingOptionEntity::getId).filter(Objects::nonNull).toList();
+        Map<Long, Map<String, String>> servingLabels = servingOptionIds.isEmpty() ? Map.of()
+                : foodItemServingOptionLocalizationRepository.findByServingOptionIdIn(servingOptionIds).stream()
+                    .filter(FoodItemServingOptionLocalizationEntity::getActive)
+                    .collect(Collectors.groupingBy(
+                            localization -> localization.getServingOption().getId(),
+                            Collectors.toMap(
+                                    localization -> localization.getLanguage().name(),
+                                    FoodItemServingOptionLocalizationEntity::getLabel,
+                                    (first, ignored) -> first,
+                                    LinkedHashMap::new
+                            )
+                    ));
         Map<Long, Map<PreferredLanguage, FoodItemLocalizationEntity>> localizations = exportedProducts.isEmpty()
                 ? Map.of()
                 : foodItemLocalizationRepository.findByFoodItemIdInAndLanguageIn(
@@ -1217,14 +1290,25 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
                 "saturated_fat",
                 "trans_fat",
                 "sugar_alcohol",
+                "nutrition_reference_unit",
                 "serving_size_grams",
-                "serving_unit"
+                "serving_unit",
+                "serving_options_json"
         )).append('\n');
-        exportedProducts.forEach(product -> appendExportRow(csv, product, localizations.getOrDefault(product.getId(), Map.of())));
+        exportedProducts.forEach(product -> appendExportRow(
+                csv,
+                product,
+                localizations.getOrDefault(product.getId(), Map.of()),
+                servingOptions.getOrDefault(product.getId(), List.of()),
+                servingLabels
+        ));
         return csv.toString().getBytes(StandardCharsets.UTF_8);
     }
 
-    private void appendExportRow(StringBuilder csv, FoodItemEntity product, Map<PreferredLanguage, FoodItemLocalizationEntity> localizations) {
+    private void appendExportRow(StringBuilder csv, FoodItemEntity product,
+                                 Map<PreferredLanguage, FoodItemLocalizationEntity> localizations,
+                                 List<FoodItemServingOptionEntity> servingOptions,
+                                 Map<Long, Map<String, String>> servingLabels) {
         FoodItemLocalizationEntity english = localizations.get(PreferredLanguage.EN);
         FoodItemLocalizationEntity turkish = localizations.get(PreferredLanguage.TR);
         csv.append(csv(product.getId()))
@@ -1266,8 +1350,10 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
                 .append(',').append(csv(product.getSaturatedFat()))
                 .append(',').append(csv(product.getTransFat()))
                 .append(',').append(csv(product.getSugarAlcohol()))
+                .append(',').append(csv(product.getNutritionReferenceUnit()))
                 .append(',').append(csv(product.getServingSizeGrams()))
                 .append(',').append(csv(product.getServingUnit()))
+                .append(',').append(csv(serializeServingOptions(servingOptions, servingLabels)))
                 .append('\n');
     }
 
@@ -1280,6 +1366,147 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
             return "\"" + text.replace("\"", "\"\"") + "\"";
         }
         return text;
+    }
+
+    private String serializeServingOptions(List<FoodItemServingOptionEntity> options,
+                                           Map<Long, Map<String, String>> labelsByOptionId) {
+        if (options == null || options.isEmpty()) return "[]";
+        List<CorrectionServingOption> values = options.stream().map(option -> new CorrectionServingOption(
+                option.getLabel(),
+                option.getUnitType() == null ? null : option.getUnitType().name(),
+                option.getQuantity(),
+                option.getGramWeight(),
+                option.getMlVolume(),
+                Boolean.TRUE.equals(option.getIsDefault()),
+                labelsByOptionId.getOrDefault(option.getId(), Map.of())
+        )).toList();
+        try {
+            return objectMapper.writeValueAsString(values);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("Serving options could not be exported.", exception);
+        }
+    }
+
+    private boolean hasCorrectionServingOptions(CsvCorrectionRow row) {
+        return firstText(row, "serving_options_json", "servingoptionsjson", "portion_options_json") != null;
+    }
+
+    private List<CorrectionServingOption> parseCorrectionServingOptions(
+            CsvCorrectionRow row,
+            FoodNutritionReferenceUnit referenceUnit
+    ) {
+        String raw = firstText(row, "serving_options_json", "servingoptionsjson", "portion_options_json");
+        if (raw == null) return List.of();
+        try {
+            List<CorrectionServingOption> options = objectMapper.readValue(
+                    raw, new TypeReference<List<CorrectionServingOption>>() {});
+            if (options == null || options.size() > 20) {
+                throw new IllegalArgumentException("serving_options_json must contain at most 20 options.");
+            }
+            Set<String> labels = new java.util.HashSet<>();
+            int defaultCount = 0;
+            for (CorrectionServingOption option : options) {
+                String label = trimToNull(option.label());
+                FoodServingOptionUnit unit = parseCorrectionServingUnit(option.unitType());
+                double quantity = option.quantity() == null ? 1.0 : option.quantity();
+                boolean hasConversion = positive(option.gramWeight()) || positive(option.mlVolume());
+                boolean nativeServing = referenceUnit == FoodNutritionReferenceUnit.PER_SERVING
+                        && (unit == FoodServingOptionUnit.SERVING
+                            || unit == FoodServingOptionUnit.PORTION
+                            || unit == FoodServingOptionUnit.PIECE);
+                if (label == null || label.length() > 120 || unit == null
+                        || !Double.isFinite(quantity) || quantity <= 0
+                        || (!hasConversion && !nativeServing)
+                        || (option.gramWeight() != null && !positive(option.gramWeight()))
+                        || (option.mlVolume() != null && !positive(option.mlVolume()))
+                        || !labels.add(label.toLowerCase(Locale.ROOT))) {
+                    throw new IllegalArgumentException("serving_options_json contains an invalid serving option.");
+                }
+                if (Boolean.TRUE.equals(option.defaultOption())) defaultCount++;
+                if (option.labels() != null) {
+                    for (Map.Entry<String, String> entry : option.labels().entrySet()) {
+                        parseEnum(PreferredLanguage.class, entry.getKey(), "serving label language");
+                        String localizedLabel = trimToNull(entry.getValue());
+                        if (localizedLabel == null || localizedLabel.length() > 120) {
+                            throw new IllegalArgumentException(
+                                    "Serving option localized labels must be 1-120 characters."
+                            );
+                        }
+                    }
+                }
+            }
+            if (defaultCount > 1 || (referenceUnit == FoodNutritionReferenceUnit.PER_SERVING
+                    && (options.isEmpty() || defaultCount != 1))) {
+                throw new IllegalArgumentException("PER_SERVING requires exactly one default native serving option.");
+            }
+            return options;
+        } catch (JsonProcessingException exception) {
+            throw new IllegalArgumentException("serving_options_json is not valid JSON.");
+        }
+    }
+
+    private void replaceCorrectionServingOptions(FoodItemEntity product, List<CorrectionServingOption> definitions) {
+        List<FoodItemServingOptionEntity> existing = foodItemServingOptionRepository.findByFoodItemId(product.getId());
+        List<Long> existingIds = existing.stream().map(FoodItemServingOptionEntity::getId)
+                .filter(Objects::nonNull).toList();
+        if (!existingIds.isEmpty()) {
+            List<FoodItemServingOptionLocalizationEntity> localizations =
+                    foodItemServingOptionLocalizationRepository.findByServingOptionIdIn(existingIds);
+            if (!localizations.isEmpty()) foodItemServingOptionLocalizationRepository.deleteAll(localizations);
+        }
+        if (!existing.isEmpty()) foodItemServingOptionRepository.deleteAll(existing);
+        if (definitions.isEmpty()) return;
+
+        List<FoodItemServingOptionEntity> entities = new ArrayList<>();
+        for (CorrectionServingOption definition : definitions) {
+            FoodItemServingOptionEntity option = new FoodItemServingOptionEntity();
+            option.setFoodItem(product);
+            option.setLabel(normalizeCorrectionServingLabel(definition.label(), null));
+            option.setUnitType(parseCorrectionServingUnit(definition.unitType()));
+            option.setQuantity(definition.quantity() == null ? 1.0 : definition.quantity());
+            option.setGramWeight(definition.gramWeight());
+            option.setMlVolume(definition.mlVolume());
+            option.setIsDefault(Boolean.TRUE.equals(definition.defaultOption()));
+            option.setSource(FoodServingOptionSource.ADMIN);
+            option.setQualityStatus(FoodServingOptionQualityStatus.VERIFIED);
+            option.setUserVisible(true);
+            entities.add(option);
+        }
+        List<FoodItemServingOptionEntity> saved = foodItemServingOptionRepository.saveAll(entities);
+        List<FoodItemServingOptionLocalizationEntity> localizations = new ArrayList<>();
+        for (int index = 0; index < saved.size(); index++) {
+            Map<String, String> labels = definitions.get(index).labels();
+            if (labels == null) continue;
+            for (Map.Entry<String, String> entry : labels.entrySet()) {
+                PreferredLanguage language = parseEnum(PreferredLanguage.class, entry.getKey(), "serving label language");
+                String localizedLabel = normalizeCorrectionServingLabel(entry.getValue(), language);
+                if (localizedLabel == null || localizedLabel.length() > 120) {
+                    throw new IllegalArgumentException("Serving option localized labels must be 1-120 characters.");
+                }
+                FoodItemServingOptionLocalizationEntity localization = new FoodItemServingOptionLocalizationEntity();
+                localization.setServingOption(saved.get(index));
+                localization.setLanguage(language);
+                localization.setLabel(localizedLabel);
+                localization.setSource("admin-import");
+                localization.setActive(true);
+                localization.setCreatedAt(LocalDateTime.now());
+                localization.setUpdatedAt(LocalDateTime.now());
+                localizations.add(localization);
+            }
+        }
+        if (!localizations.isEmpty()) foodItemServingOptionLocalizationRepository.saveAll(localizations);
+    }
+
+    private FoodServingOptionUnit parseCorrectionServingUnit(String value) {
+        return parseEnum(FoodServingOptionUnit.class, value, "serving option unit");
+    }
+
+    private String normalizeCorrectionServingLabel(String value, PreferredLanguage language) {
+        return FoodProductNormalizationRules.normalizeProductDisplayName(value, language);
+    }
+
+    private boolean positive(Double value) {
+        return value != null && Double.isFinite(value) && value > 0;
     }
     private String trimToNull(String value) {
         if (value == null || value.trim().isEmpty()) {
@@ -1577,6 +1804,11 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
         request.setSaturatedFat(parseDouble(row, "saturated_fat", "saturatedfat", "saturated_fat_100g", "saturatedfat_100g"));
         request.setTransFat(parseDouble(row, "trans_fat", "transfat", "trans_fat_100g", "transfat_100g"));
         request.setSugarAlcohol(parseDouble(row, "sugar_alcohol", "sugaralcohol", "sugar_alcohol_100g", "sugaralcohol_100g"));
+        request.setNutritionReferenceUnit(parseEnum(
+                FoodNutritionReferenceUnit.class,
+                firstText(row, "nutrition_reference_unit", "nutritionreferenceunit", "nutrition_unit"),
+                "nutrition_reference_unit"
+        ));
         request.setServingSizeGrams(parseDouble(row, "servingsizegrams", "serving_size_grams", "serving_size", "serving_quantity"));
         request.setServingUnit(firstText(row, "servingunit", "serving_unit", "serving_quantity_unit"));
         request.setDisplayImageUrl(firstText(row, "displayimageurl", "display_image_url", "curated_image_url"));
@@ -1944,7 +2176,7 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
                     criteriaBuilder.greaterThan(root.get("sugar"), root.get("carbs")),
                     criteriaBuilder.greaterThan(root.get("saturatedFat"), root.get("fat")),
                     criteriaBuilder.greaterThan(root.get("transFat"), root.get("fat")),
-                    criteriaBuilder.greaterThan(root.get("sodium"), 10.0)
+                    criteriaBuilder.greaterThan(root.get("sodium"), NutritionValueNormalizer.MAX_SODIUM_MG)
             );
         };
         return derivedPredicate == null
@@ -2206,4 +2438,14 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
                     || shortDisplayNameEn != null || displayNameTr != null || shortDisplayNameTr != null;
         }
     }
+
+    private record CorrectionServingOption(
+            String label,
+            String unitType,
+            Double quantity,
+            Double gramWeight,
+            Double mlVolume,
+            Boolean defaultOption,
+            Map<String, String> labels
+    ) {}
 }

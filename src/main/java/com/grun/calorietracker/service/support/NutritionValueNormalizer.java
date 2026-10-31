@@ -5,6 +5,9 @@ import java.math.RoundingMode;
 
 public final class NutritionValueNormalizer {
 
+    /** Canonical catalog sodium unit is milligrams for the declared nutrition reference basis. */
+    public static final double MAX_SODIUM_MG = 10_000.0;
+
     private NutritionValueNormalizer() {
     }
 

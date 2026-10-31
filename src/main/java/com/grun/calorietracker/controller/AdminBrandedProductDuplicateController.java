@@ -66,6 +66,17 @@ public class AdminBrandedProductDuplicateController {
         return ResponseEntity.ok(analysisService.getCandidates(page, size, query, variantSignal));
     }
 
+    @GetMapping("/exact")
+    @Operation(
+            summary = "Get one exact branded duplicate group",
+            description = "Returns the current candidates and fingerprint for one normalized brand/name identity. This endpoint is read-only and is intended for stale-safe review preparation."
+    )
+    public ResponseEntity<com.grun.calorietracker.dto.BrandedProductDuplicateGroupDto> getExactGroup(
+            @RequestParam String brandKey,
+            @RequestParam String nameKey) {
+        return ResponseEntity.ok(analysisService.getExactGroup(brandKey, nameKey));
+    }
+
     @GetMapping("/decision")
     @Operation(summary = "Get a branded duplicate decision",
             description = "Returns the current reviewed decision for one exact brand/name identity group.")

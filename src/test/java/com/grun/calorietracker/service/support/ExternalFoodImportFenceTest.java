@@ -9,6 +9,7 @@ import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import com.grun.calorietracker.exception.CatalogWriteInProgressException;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -68,14 +69,36 @@ class ExternalFoodImportFenceTest {
         when(metadata.getDatabaseProductName()).thenReturn("PostgreSQL");
         when(connection.getTransactionIsolation()).thenReturn(Connection.TRANSACTION_READ_COMMITTED);
         var statement = mock(PreparedStatement.class); var result = mock(ResultSet.class);
-        when(connection.prepareStatement("select pg_advisory_xact_lock(17491, 310)")).thenReturn(statement);
+        when(connection.prepareStatement("select pg_try_advisory_xact_lock(17491, 310)")).thenReturn(statement);
         when(statement.executeQuery()).thenReturn(result);
+        when(result.next()).thenReturn(true);
+        when(result.getBoolean(1)).thenReturn(true);
         TransactionSynchronizationManager.setActualTransactionActive(true);
         new ExternalFoodImportFence(callbackJdbc(connection)).acquire();
         var order = inOrder(statement, result);
-        order.verify(statement).setQueryTimeout(5); order.verify(statement).executeQuery();
+        order.verify(statement).executeQuery();
+        order.verify(result).next(); order.verify(result).getBoolean(1);
         order.verify(result).close(); order.verify(statement).close();
         verify(connection, never()).commit(); verify(connection, never()).close();
+    }
+
+    @Test void busyFenceReturnsStableConflictInsteadOfDatabaseTimeout() throws Exception {
+        var connection = mock(Connection.class); var metadata = mock(DatabaseMetaData.class);
+        when(connection.getMetaData()).thenReturn(metadata);
+        when(metadata.getDatabaseProductName()).thenReturn("PostgreSQL");
+        when(connection.getTransactionIsolation()).thenReturn(Connection.TRANSACTION_READ_COMMITTED);
+        var statement = mock(PreparedStatement.class); var result = mock(ResultSet.class);
+        when(connection.prepareStatement("select pg_try_advisory_xact_lock(17491, 310)")).thenReturn(statement);
+        when(statement.executeQuery()).thenReturn(result);
+        when(result.next()).thenReturn(true);
+        when(result.getBoolean(1)).thenReturn(false);
+        TransactionSynchronizationManager.setActualTransactionActive(true);
+
+        assertThrows(CatalogWriteInProgressException.class,
+                new ExternalFoodImportFence(callbackJdbc(connection))::acquire);
+        verify(statement, never()).setQueryTimeout(anyInt());
+        verify(result).close();
+        verify(statement).close();
     }
 
     private JdbcTemplate callbackJdbc(Connection connection) {

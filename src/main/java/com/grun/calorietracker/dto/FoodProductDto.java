@@ -243,4 +243,19 @@ public class FoodProductDto {
 
     @Schema(description = "Recommended default portion unit for the product add-food screen.", example = "GRAM")
     private FoodPortionUnit defaultPortionUnit;
+
+    @Schema(description = "Presentation family id used to collapse package variants in name search.")
+    private Long productFamilyId;
+
+    @Schema(description = "Stable presentation family key. Null for products not linked to a reviewed family.")
+    private String productFamilyKey;
+
+    @Schema(description = "Package-size-neutral display name shared by the reviewed product family.")
+    private String productFamilyDisplayName;
+
+    @Schema(description = "True when this response is the representative shown in name search.")
+    private Boolean productFamilyRepresentative;
+
+    @Schema(description = "Barcode-specific packages in the same reviewed product family.")
+    private List<FoodProductPackageVariantDto> packageVariants;
 }

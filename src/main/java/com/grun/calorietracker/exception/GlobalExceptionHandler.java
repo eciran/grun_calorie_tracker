@@ -541,6 +541,18 @@ public class GlobalExceptionHandler {
                 request
         );
     }
+
+    @ExceptionHandler(CatalogWriteInProgressException.class)
+    public ResponseEntity<ApiErrorResponseDto> handleCatalogWriteInProgress(
+            CatalogWriteInProgressException ex,
+            HttpServletRequest request
+    ) {
+        boolean turkish = "tr".equals(LocaleConfig.resolveSupportedLocale(RequestContextUtils.getLocale(request)).getLanguage());
+        String message = turkish
+                ? "Başka bir katalog güncellemesi devam ediyor. İşlem tamamlandıktan sonra tekrar deneyin."
+                : "Another catalog update is in progress. Try again after it finishes.";
+        return buildDomainResponse(HttpStatus.CONFLICT, "CATALOG_WRITE_IN_PROGRESS", message, List.of(), request);
+    }
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ApiErrorResponseDto> handleDataIntegrityViolationException(DataIntegrityViolationException ex,
                                                                                     HttpServletRequest request) {

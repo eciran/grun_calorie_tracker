@@ -15,6 +15,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Optional;
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -36,7 +37,7 @@ class CatalogPublicationServiceImplTest {
 
     @Test
     void publishRejectsMissingAndNonFiniteCoreNutritionWithoutWrites() {
-        for (Double invalid : new Double[]{null, Double.NaN, Double.POSITIVE_INFINITY, -1.0, 101.0}) {
+        for (Double invalid : new Double[]{null, Double.NaN, Double.POSITIVE_INFINITY, -1.0}) {
             FoodItemEntity product = candidate();
             product.setProtein(invalid);
             assertThrows(IllegalArgumentException.class,
@@ -70,6 +71,23 @@ class CatalogPublicationServiceImplTest {
                 java.util.Map.of("publicationStatus", "PUBLISHED", "reason", "Review approved"),
                 "cid-1"
         );
+    }
+
+    @Test
+    void publicationAllowsHighPerServingNutritionValues() {
+        FoodItemEntity product = candidate();
+        product.setId(16L);
+        product.setCalories(2_400.0);
+        product.setProtein(180.0);
+        product.setFat(140.0);
+        product.setCarbs(260.0);
+        product.setSodium(12_500.0);
+        when(foodItemRepository.findById(16L)).thenReturn(Optional.of(product));
+        when(foodItemRepository.save(product)).thenReturn(product);
+
+        FoodItemEntity result = service.publish(16L, "owner@grun.local", "Reviewed restaurant serving", "cid-high-serving");
+
+        assertEquals(CatalogPublicationStatus.PUBLISHED, result.getPublicationStatus());
     }
 
     @Test
@@ -152,6 +170,27 @@ class CatalogPublicationServiceImplTest {
             assertEquals(CatalogPublicationStatus.PUBLISHED, product.getPublicationStatus());
         });
         verify(foodItemRepository, org.mockito.Mockito.times(2)).save(any(FoodItemEntity.class));
+    }
+
+    @Test
+    void verifyAndPublishBatchInitializesCollectionsNeededByResponseMapper() {
+        FoodItemEntity product = candidate();
+        product.setId(18L);
+        product.setVerificationStatus(VerificationStatus.RAW_IMPORTED);
+        @SuppressWarnings("unchecked")
+        Set<com.grun.calorietracker.enums.MarketRegion> marketRegions = org.mockito.Mockito.mock(Set.class);
+        @SuppressWarnings("unchecked")
+        Set<String> sourceCategoryTags = org.mockito.Mockito.mock(Set.class);
+        product.setMarketRegions(marketRegions);
+        product.setSourceCategoryTags(sourceCategoryTags);
+        when(foodItemRepository.findAllById(List.of(18L))).thenReturn(List.of(product));
+        when(foodItemRepository.save(product)).thenReturn(product);
+
+        service.verifyAndPublishBatch(
+                List.of(18L), "owner@grun.local", "Reviewed import batch", "batch-response-collections");
+
+        verify(marketRegions).size();
+        verify(sourceCategoryTags).size();
     }
 
     @Test

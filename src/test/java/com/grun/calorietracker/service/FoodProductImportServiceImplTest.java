@@ -14,7 +14,9 @@ import com.grun.calorietracker.enums.FoodProductImportMode;
 import com.grun.calorietracker.enums.FoodPreparationState;
 import com.grun.calorietracker.enums.FoodNutritionBasis;
 import com.grun.calorietracker.enums.FoodNutritionReferenceUnit;
+import com.grun.calorietracker.enums.FoodPortionUnit;
 import com.grun.calorietracker.enums.FoodServingOptionUnit;
+import com.grun.calorietracker.enums.FoodServingOptionQualityStatus;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.PreferredLanguage;
@@ -37,6 +39,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
+import java.math.BigDecimal;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -106,6 +109,23 @@ class FoodProductImportServiceImplTest {
     }
 
     @Test
+    void importCsv_persistsNormalizedPhysicalPackageMetadata() {
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result = foodProductImportService.importCsv(csv("""
+                source_key,barcode,name,brand,calories,protein,fat,carbs,nutrition_reference_unit,package_quantity,package_unit,quantity
+                TEST:drink:1,5000000000001,Test Multipack Drink,Test Brand,42,0,0,10,PER_100ML,1500,MILLILITER,6 x 250 ml
+                """), "admin@test.com", FoodProductImportMode.RAW_EXTERNAL);
+
+        assertEquals(1, result.getSavedRows());
+        ArgumentCaptor<List<FoodItemEntity>> products = ArgumentCaptor.forClass(List.class);
+        verify(foodItemRepository).saveAll(products.capture());
+        FoodItemEntity product = products.getValue().get(0);
+        assertEquals(new BigDecimal("1500.000"), product.getPackageQuantity());
+        assertEquals(FoodPortionUnit.MILLILITER, product.getPackageUnit());
+    }
+
+    @Test
     void importCsv_acceptsNativePerServingMenuProductWithoutInventedMass() {
         when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> {
             List<FoodItemEntity> values = invocation.getArgument(0);
@@ -130,6 +150,43 @@ class FoodProductImportServiceImplTest {
         assertEquals(1, options.getValue().size());
         assertNull(options.getValue().get(0).getGramWeight());
         assertNull(options.getValue().get(0).getMlVolume());
+    }
+
+    @Test
+    void curatedImport_withServingOptionsIsVerifiedAndSelectsFirstOptionWhenDefaultIsOmitted() {
+        when(foodItemRepository.findByNormalizedBarcodeIn(any(), any(Sort.class))).thenReturn(List.of());
+        when(foodItemRepository.saveAll(any())).thenAnswer(invocation -> {
+            List<FoodItemEntity> values = invocation.getArgument(0);
+            values.get(0).setId(91L);
+            return values;
+        });
+        when(foodItemServingOptionRepository.findByFoodItemIdInOrderByFoodItemIdAscIsDefaultDescLabelAsc(anyList()))
+                .thenReturn(List.of());
+        when(foodItemServingOptionRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result = foodProductImportService.importCsv(csv("""
+                barcode,name,calories,protein,fat,carbs,nutrition_reference_unit,serving_options_json
+                5010000000091,SEEDED BREAD,265,9,4,49,PER_100G,"[{""label"":""slice"",""unitType"":""SERVING"",""quantity"":1,""gramWeight"":63,""mlVolume"":null,""defaultOption"":false,""labels"":{""EN"":""slice""}},{""label"":""100g"",""unitType"":""SERVING"",""quantity"":1,""gramWeight"":100,""mlVolume"":null,""defaultOption"":false,""labels"":{""EN"":""100g""}},{""label"":""portion, 3 slices"",""unitType"":""SERVING"",""quantity"":1,""gramWeight"":189.1,""mlVolume"":null,""defaultOption"":false,""labels"":{""EN"":""portion, 3 slices""}}]"
+                """), "admin@test.com");
+
+        assertEquals(1, result.getSavedRows());
+        ArgumentCaptor<List<FoodItemEntity>> products = ArgumentCaptor.forClass(List.class);
+        verify(foodItemRepository).saveAll(products.capture());
+        assertEquals("Seeded Bread", products.getValue().get(0).getName());
+        assertEquals(VerificationStatus.VERIFIED, products.getValue().get(0).getVerificationStatus());
+
+        ArgumentCaptor<List<FoodItemServingOptionEntity>> options = ArgumentCaptor.forClass(List.class);
+        verify(foodItemServingOptionRepository).saveAll(options.capture());
+        assertEquals(3, options.getValue().size());
+        assertEquals(true, options.getValue().get(0).getIsDefault());
+        assertEquals(List.of("Slice", "100g", "Portion, 3 Slices"), options.getValue().stream()
+                .map(FoodItemServingOptionEntity::getLabel)
+                .toList());
+        assertEquals(List.of(
+                        FoodServingOptionQualityStatus.VERIFIED,
+                        FoodServingOptionQualityStatus.VERIFIED,
+                        FoodServingOptionQualityStatus.VERIFIED
+                ), options.getValue().stream().map(FoodItemServingOptionEntity::getQualityStatus).toList());
     }
 
     @Test
@@ -1049,7 +1106,7 @@ class FoodProductImportServiceImplTest {
         assertEquals(7L, options.get(0).getId());
         assertEquals(118.0, options.get(0).getGramWeight());
         assertEquals(true, options.get(0).getIsDefault());
-        assertEquals("1/2 banana", options.get(1).getLabel());
+        assertEquals("1/2 Banana", options.get(1).getLabel());
         assertEquals(59.0, options.get(1).getGramWeight());
     }
 
@@ -1143,7 +1200,7 @@ FoodItemServingOptionEntity existingOptionReference = new FoodItemServingOptionE
         assertEquals(List.of(PreferredLanguage.EN, PreferredLanguage.TR), captor.getValue().stream()
                 .map(FoodItemServingOptionLocalizationEntity::getLanguage)
                 .toList());
-        assertEquals(List.of("1 medium banana", "1 orta boy muz"), captor.getValue().stream()
+        assertEquals(List.of("1 Medium Banana", "1 Orta Boy Muz"), captor.getValue().stream()
                 .map(FoodItemServingOptionLocalizationEntity::getLabel)
                 .toList());
         assertEquals(List.of(61L, 61L), captor.getValue().stream()

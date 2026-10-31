@@ -6,6 +6,7 @@ import com.grun.calorietracker.enums.FoodPreparationState;
 import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodNutritionBasis;
 import com.grun.calorietracker.enums.FoodNutritionReferenceUnit;
+import com.grun.calorietracker.enums.FoodPortionUnit;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
@@ -19,6 +20,7 @@ import lombok.EqualsAndHashCode;
 import lombok.ToString;
 
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -180,6 +182,13 @@ public class FoodItemEntity {
 
     private Double servingSizeGrams;
     private String servingUnit;
+
+    @Column(precision = 12, scale = 3)
+    private BigDecimal packageQuantity;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 24)
+    private FoodPortionUnit packageUnit;
 
     private Boolean isCustom;
 

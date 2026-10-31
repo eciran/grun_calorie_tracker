@@ -142,12 +142,16 @@ class CatalogWriterFenceOrderingTest {
         final FoodProductReviewAuditRepository audits = mock(FoodProductReviewAuditRepository.class);
         final FoodProductQualityIssueRepository issues = mock(FoodProductQualityIssueRepository.class);
         final FoodItemSearchAliasRepository aliases = mock(FoodItemSearchAliasRepository.class);
+        final com.grun.calorietracker.repository.FoodItemServingOptionRepository servingOptions = mock(com.grun.calorietracker.repository.FoodItemServingOptionRepository.class);
+        final com.grun.calorietracker.repository.FoodItemServingOptionLocalizationRepository servingOptionLocalizations = mock(com.grun.calorietracker.repository.FoodItemServingOptionLocalizationRepository.class);
         final FoodCanonicalResolutionRepository canonical = mock(FoodCanonicalResolutionRepository.class);
         final FoodProductQualityIssueTracker tracker = mock(FoodProductQualityIssueTracker.class);
         final ExternalFoodImportFence fence = mock(ExternalFoodImportFence.class);
         final RuntimeException denied = new IllegalStateException("fence denied before read");
         final FoodProductReviewServiceImpl service = new FoodProductReviewServiceImpl(
-                products, localizations, logs, favorites, audits, issues, aliases, canonical, tracker);
+                products, localizations, logs, favorites, audits, issues, aliases,
+                servingOptions, servingOptionLocalizations, canonical, tracker,
+                new com.fasterxml.jackson.databind.ObjectMapper());
         ReviewFixture() { doThrow(denied).when(fence).acquire(); installIfPresent(service, fence); }
     }
 }

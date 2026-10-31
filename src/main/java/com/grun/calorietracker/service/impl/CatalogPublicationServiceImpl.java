@@ -49,7 +49,7 @@ public class CatalogPublicationServiceImpl implements CatalogPublicationService 
             throw new IllegalArgumentException("New publication cannot reference a persisted product");
         }
         acquireCatalogWriteFence();
-        return publishGuarded(product, actor, reason, correlationId);
+        return initializeResponseCollections(publishGuarded(product, actor, reason, correlationId));
     }
 
     @Override
@@ -64,7 +64,7 @@ public class CatalogPublicationServiceImpl implements CatalogPublicationService 
         acquireCatalogWriteFence();
         FoodItemEntity product = foodItemRepository.findById(productId)
                 .orElseThrow(() -> new ProductNotFoundException("Food item not found"));
-        return publishGuarded(product, actor, reason, correlationId);
+        return initializeResponseCollections(publishGuarded(product, actor, reason, correlationId));
     }
 
     @Override
@@ -95,9 +95,11 @@ public class CatalogPublicationServiceImpl implements CatalogPublicationService 
                 .collect(java.util.stream.Collectors.toMap(FoodItemEntity::getId, product -> product));
         List<FoodItemEntity> ordered = uniqueIds.stream().map(byId::get).toList();
         ordered.forEach(product -> validatePublishable(product, actor, reason));
-        return ordered.stream()
+        List<FoodItemEntity> published = ordered.stream()
                 .map(product -> publishValidated(product, actor, reason, correlationId))
                 .toList();
+        published.forEach(this::initializeResponseCollections);
+        return published;
     }
 
     @Override
@@ -137,7 +139,7 @@ public class CatalogPublicationServiceImpl implements CatalogPublicationService 
                     "Publication validation failed: " + String.join("; ", validationFailures)
             );
         }
-        return ordered.stream().map(product -> {
+        List<FoodItemEntity> published = ordered.stream().map(product -> {
             VerificationStatus previousVerification = product.getVerificationStatus();
             if (previousVerification != VerificationStatus.VERIFIED) {
                 product.setVerificationStatus(VerificationStatus.VERIFIED);
@@ -153,6 +155,20 @@ public class CatalogPublicationServiceImpl implements CatalogPublicationService 
             }
             return publishValidated(product, actor, reason, correlationId);
         }).toList();
+        published.forEach(this::initializeResponseCollections);
+        return published;
+    }
+
+    /**
+     * Publication methods return entities for historical API compatibility. Initialize every
+     * collection consumed by {@code FoodItemMapper} while this service transaction is still open,
+     * so controller response mapping cannot trigger a detached lazy collection failure.
+     */
+    private FoodItemEntity initializeResponseCollections(FoodItemEntity product) {
+        if (product == null) return null;
+        if (product.getMarketRegions() != null) product.getMarketRegions().size();
+        if (product.getSourceCategoryTags() != null) product.getSourceCategoryTags().size();
+        return product;
     }
 
     private FoodItemEntity publishGuarded(
@@ -193,10 +209,10 @@ public class CatalogPublicationServiceImpl implements CatalogPublicationService 
         if (product.getName() == null || product.getName().isBlank()) {
             issues.add("name: required");
         }
-        addNutritionIssue(issues, "calories", product.getCalories(), 1000.0);
-        addNutritionIssue(issues, "protein", product.getProtein(), 100.0);
-        addNutritionIssue(issues, "fat", product.getFat(), 100.0);
-        addNutritionIssue(issues, "carbs", product.getCarbs(), 100.0);
+        addRequiredNonNegativeIssue(issues, "calories", product.getCalories());
+        addRequiredNonNegativeIssue(issues, "protein", product.getProtein());
+        addRequiredNonNegativeIssue(issues, "fat", product.getFat());
+        addRequiredNonNegativeIssue(issues, "carbs", product.getCarbs());
         addOptionalNonNegativeIssue(issues, "fiber", product.getFiber());
         addOptionalNonNegativeIssue(issues, "sugar", product.getSugar());
         addOptionalNonNegativeIssue(issues, "sodium", product.getSodium());
@@ -208,9 +224,6 @@ public class CatalogPublicationServiceImpl implements CatalogPublicationService 
         }
         if (product.getTransFat() != null && product.getFat() != null && product.getTransFat() > product.getFat()) {
             issues.add("transFat: cannot exceed fat");
-        }
-        if (product.getSodium() != null && Double.isFinite(product.getSodium()) && product.getSodium() > 10.0) {
-            issues.add("sodium: must be at most 10");
         }
         if (product.getNutritionReferenceUnit() == null) {
             issues.add("nutritionReferenceUnit: required (PER_100G, PER_100ML or PER_SERVING)");
@@ -226,15 +239,13 @@ public class CatalogPublicationServiceImpl implements CatalogPublicationService 
         return issues;
     }
 
-    private void addNutritionIssue(List<String> issues, String field, Double value, double maximum) {
+    private void addRequiredNonNegativeIssue(List<String> issues, String field, Double value) {
         if (value == null) {
             issues.add(field + ": required");
         } else if (!Double.isFinite(value)) {
             issues.add(field + ": must be a finite number");
         } else if (value < 0.0) {
             issues.add(field + ": must be non-negative");
-        } else if (value > maximum) {
-            issues.add(field + ": must be at most " + (int) maximum);
         }
     }
 

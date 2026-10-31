@@ -19,4 +19,13 @@ class FoodBrandSearchRulesTest {
         assertNull(FoodBrandSearchRules.key("%"));
         assertNull(FoodBrandSearchRules.key(null));
     }
+
+    @Test
+    void foldsAccentsAndKeepsLegitimateTwoLetterBrands() {
+        assertEquals("nestle", FoodBrandSearchRules.key("Nestlé"));
+        assertEquals("clementfaugier", FoodBrandSearchRules.key("Clément Faugier"));
+        assertEquals("gu", FoodBrandSearchRules.key("Gü"));
+        assertEquals("kp", FoodBrandSearchRules.key("KP"));
+        assertEquals("ka", FoodBrandSearchRules.key("KA"));
+    }
 }

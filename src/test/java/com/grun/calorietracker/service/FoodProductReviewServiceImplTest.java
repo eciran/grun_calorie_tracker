@@ -19,6 +19,7 @@ import com.grun.calorietracker.entity.FoodCanonicalResolutionEntity;
 import com.grun.calorietracker.entity.FoodItemEntity;
 import com.grun.calorietracker.entity.FoodItemLocalizationEntity;
 import com.grun.calorietracker.entity.FoodItemSearchAliasEntity;
+import com.grun.calorietracker.entity.FoodItemServingOptionEntity;
 import com.grun.calorietracker.entity.FoodProductQualityIssueEntity;
 import com.grun.calorietracker.entity.FoodProductReviewAuditEntity;
 import com.grun.calorietracker.enums.FoodCanonicalResolutionState;
@@ -27,6 +28,9 @@ import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.FoodPreparationState;
 import com.grun.calorietracker.enums.FoodProductQualityIssue;
 import com.grun.calorietracker.enums.FoodProductReviewAuditAction;
+import com.grun.calorietracker.enums.FoodNutritionReferenceUnit;
+import com.grun.calorietracker.enums.FoodServingOptionQualityStatus;
+import com.grun.calorietracker.enums.FoodServingOptionUnit;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
 import com.grun.calorietracker.enums.MarketRegion;
@@ -36,6 +40,8 @@ import com.grun.calorietracker.repository.FoodCanonicalResolutionRepository;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.FoodItemLocalizationRepository;
 import com.grun.calorietracker.repository.FoodItemSearchAliasRepository;
+import com.grun.calorietracker.repository.FoodItemServingOptionRepository;
+import com.grun.calorietracker.repository.FoodItemServingOptionLocalizationRepository;
 import com.grun.calorietracker.repository.FoodLogsRepository;
 import com.grun.calorietracker.repository.FoodProductQualityIssueRepository;
 import com.grun.calorietracker.repository.FoodProductReviewAuditRepository;
@@ -47,6 +53,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.MockitoAnnotations;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -90,6 +97,15 @@ class FoodProductReviewServiceImplTest {
 
     @Mock
     private FoodItemSearchAliasRepository foodItemSearchAliasRepository;
+
+    @Mock
+    private FoodItemServingOptionRepository foodItemServingOptionRepository;
+
+    @Mock
+    private FoodItemServingOptionLocalizationRepository foodItemServingOptionLocalizationRepository;
+
+    @Spy
+    private com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
 
     @Mock
     private FoodProductQualityIssueRepository foodProductQualityIssueRepository;
@@ -1035,6 +1051,51 @@ class FoodProductReviewServiceImplTest {
         assertEquals("https://cdn.grun.app/products/3017620422003.jpg", product.getDisplayImageUrl());
         assertEquals(VerificationStatus.VERIFIED, product.getVerificationStatus());
         verify(foodProductQualityIssueTracker).syncReviewIssues(product, "admin@grun.app");
+    }
+
+    @Test
+    void importNutritionCorrections_acceptsNativePerServingOptionWithoutGramOrMl() {
+        FoodItemEntity product = new FoodItemEntity();
+        product.setId(12L);
+        product.setName("Restaurant Meal");
+        product.setCatalogType(FoodCatalogType.STANDARD_PREPARED_ITEM);
+        product.setVerificationStatus(VerificationStatus.RAW_IMPORTED);
+        product.setImageStatus(ImageStatus.NEEDS_REVIEW);
+        product.setNutritionReferenceUnit(FoodNutritionReferenceUnit.PER_100G);
+
+        String options = "[{\"label\":\"1 serving\",\"unitType\":\"SERVING\",\"quantity\":1,"
+                + "\"gramWeight\":null,\"mlVolume\":null,\"defaultOption\":true,"
+                + "\"labels\":{\"EN\":\"1 serving\",\"TR\":\"1 servis\"}}]";
+        String escaped = options.replace("\"", "\"\"");
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "per-serving.csv", "text/csv",
+                ("id,nutrition_reference_unit,serving_unit,serving_options_json\n"
+                        + "12,PER_SERVING,SERVING,\"" + escaped + "\"\n").getBytes(StandardCharsets.UTF_8)
+        );
+
+        when(foodItemRepository.findById(12L)).thenReturn(Optional.of(product));
+        when(foodItemRepository.save(any(FoodItemEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(foodItemServingOptionRepository.findByFoodItemId(12L)).thenReturn(List.of());
+        when(foodItemServingOptionRepository.saveAll(any())).thenAnswer(invocation -> {
+            List<FoodItemServingOptionEntity> values = invocation.getArgument(0);
+            for (int index = 0; index < values.size(); index++) values.get(index).setId((long) index + 1);
+            return values;
+        });
+
+        var result = foodProductReviewService.importNutritionCorrections(file, "admin@grun.app", false, true);
+
+        assertEquals(1, result.getUpdatedRows());
+        assertEquals(FoodNutritionReferenceUnit.PER_SERVING, product.getNutritionReferenceUnit());
+        assertEquals("SERVING", product.getServingUnit());
+        ArgumentCaptor<List<FoodItemServingOptionEntity>> optionsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(foodItemServingOptionRepository).saveAll(optionsCaptor.capture());
+        FoodItemServingOptionEntity saved = optionsCaptor.getValue().get(0);
+        assertEquals(FoodServingOptionUnit.SERVING, saved.getUnitType());
+        assertEquals(null, saved.getGramWeight());
+        assertEquals(null, saved.getMlVolume());
+        assertEquals(true, saved.getIsDefault());
+        assertEquals("1 Serving", saved.getLabel());
+        assertEquals(FoodServingOptionQualityStatus.VERIFIED, saved.getQualityStatus());
     }
 
     @Test

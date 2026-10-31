@@ -1,5 +1,6 @@
 package com.grun.calorietracker.service.support;
 
+import com.grun.calorietracker.exception.CatalogWriteInProgressException;
 import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -31,9 +32,13 @@ public class ExternalFoodImportFence {
             }
             // One transaction-scoped fence avoids opposite batch-order and nested lookup deadlocks.
             // Provider calls happen before this fence. Only the DB import/recheck phase is serialized.
-            try (var statement = connection.prepareStatement("select pg_advisory_xact_lock(17491, 310)")) {
-                statement.setQueryTimeout(5);
-                try (var ignored = statement.executeQuery()) { return null; }
+            try (var statement = connection.prepareStatement("select pg_try_advisory_xact_lock(17491, 310)")) {
+                try (var result = statement.executeQuery()) {
+                    if (!result.next() || !result.getBoolean(1)) {
+                        throw new CatalogWriteInProgressException();
+                    }
+                    return null;
+                }
             }
         });
     }
