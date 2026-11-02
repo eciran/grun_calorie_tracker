@@ -6580,6 +6580,96 @@ label {
   font-size: 0.82rem;
 }
 
+.branded-duplicate-workspace .catalog-evidence-summary {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: auto;
+}
+
+.canonical-operation-notice {
+  padding: 10px 14px;
+  border-left: 4px solid var(--success);
+  background: var(--success-soft);
+  color: var(--text);
+  font-size: 0.88rem;
+}
+
+.branded-duplicate-workspace .canonical-group-header {
+  align-items: center;
+  padding: 12px 14px;
+}
+
+.branded-duplicate-workspace .canonical-group-header h2 {
+  margin: 1px 0;
+  font-size: 1.05rem;
+  line-height: 1.3;
+}
+
+.branded-duplicate-workspace .canonical-group-header p,
+.branded-duplicate-workspace .canonical-candidate-title span {
+  font-size: 0.76rem;
+}
+
+.branded-duplicate-workspace .canonical-group-status {
+  gap: 6px;
+}
+
+.branded-duplicate-workspace .canonical-candidate-grid {
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+}
+
+.branded-duplicate-workspace .canonical-candidate {
+  gap: 9px;
+  padding: 12px 14px;
+}
+
+.branded-duplicate-workspace .canonical-candidate h3 {
+  margin: 0 0 2px;
+  font-size: 0.94rem;
+  line-height: 1.25;
+}
+
+.branded-duplicate-workspace .canonical-facts {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--line);
+}
+
+.branded-duplicate-workspace .canonical-facts div {
+  padding: 6px 8px;
+  background: var(--surface-soft);
+}
+
+.branded-duplicate-workspace .canonical-facts dt {
+  font-size: 0.66rem;
+}
+
+.branded-duplicate-workspace .canonical-facts dd {
+  margin-top: 1px;
+  font-size: 0.78rem;
+  line-height: 1.3;
+}
+
+.branded-duplicate-workspace .canonical-candidate > .primary-button {
+  justify-self: end;
+  min-height: 34px;
+  padding: 0 12px;
+  font-size: 0.78rem;
+}
+
+.branded-duplicate-workspace .canonical-eligibility {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  padding: 8px 12px;
+}
+
+.branded-duplicate-workspace .branded-group-actions {
+  margin: 0;
+  padding: 10px 14px;
+}
+
 @media (max-width: 980px) {
   .canonical-candidate-grid,
   .canonical-facts {
@@ -6595,6 +6685,25 @@ label {
 
   .canonical-group-status {
     justify-content: flex-start;
+  }
+
+  .branded-duplicate-workspace .catalog-evidence-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .branded-duplicate-workspace .canonical-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .branded-duplicate-workspace .canonical-candidate-grid,
+  .branded-duplicate-workspace .canonical-facts {
+    grid-template-columns: 1fr;
+  }
+
+  .branded-duplicate-workspace .canonical-eligibility {
+    grid-template-columns: 1fr;
   }
 }
 

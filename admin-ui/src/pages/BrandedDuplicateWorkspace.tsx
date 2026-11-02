@@ -35,24 +35,33 @@ export function BrandedDuplicateWorkspace({
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(10);
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [priorityOnly, setPriorityOnly] = useState(true);
   const [filtersOpen, setFiltersOpen] = useState(true);
   const [draft, setDraft] = useState<DecisionDraft | null>(null);
   const [collapseDraft, setCollapseDraft] = useState<CollapseDraft | null>(null);
   const [saving, setSaving] = useState(false);
+  const [operationNotice, setOperationNotice] = useState<string | null>(null);
 
   const params = new URLSearchParams({ page: String(page), size: String(pageSize) });
-  if (query.trim()) params.set("query", query.trim());
+  if (debouncedQuery) params.set("query", debouncedQuery);
   if (priorityOnly) params.set("variantSignal", "false");
   const { data, state, reload } = useEndpoint<BrandedProductDuplicateGroupPage>(
     `/api/v1/admin/products/duplicates/branded?${params.toString()}`,
-    onError
+    onError,
+    true,
+    60000
   );
   const groups = data?.content ?? [];
   const decided = groups.filter((group) => group.storedDecision && !group.decisionStale).length;
   const stale = groups.filter((group) => group.decisionStale).length;
 
-  useEffect(() => setPage(0), [query, priorityOnly, pageSize]);
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setDebouncedQuery(query.trim()), 400);
+    return () => window.clearTimeout(timeout);
+  }, [query]);
+
+  useEffect(() => setPage(0), [debouncedQuery, priorityOnly, pageSize]);
 
   function startDecision(
     group: BrandedProductDuplicateGroup,
@@ -73,7 +82,7 @@ export function BrandedDuplicateWorkspace({
           nameKey: draft.group.nameKey,
           reason: draft.reason.trim()
         });
-        await request(`/api/v1/admin/products/duplicates/branded/decision?${params.toString()}`, { method: "DELETE" });
+        await request(`/api/v1/admin/products/duplicates/branded/decision?${params.toString()}`, { method: "DELETE", timeoutMs: 60000 });
       } else {
         await request("/api/v1/admin/products/duplicates/branded/decision", {
           method: "POST",
@@ -84,7 +93,8 @@ export function BrandedDuplicateWorkspace({
             survivorProductId: draft.survivorProductId,
             reason: draft.reason.trim(),
             candidateFingerprint: draft.group.candidateFingerprint
-          }
+          },
+          timeoutMs: 60000
         });
       }
       setDraft(null);
@@ -109,7 +119,7 @@ export function BrandedDuplicateWorkspace({
           nameKey: collapseDraft.group.nameKey,
           reason: collapseDraft.reason.trim()
         });
-        await request(`/api/v1/admin/products/duplicates/branded/search-collapse?${params.toString()}`, { method: "DELETE" });
+        await request(`/api/v1/admin/products/duplicates/branded/search-collapse?${params.toString()}`, { method: "DELETE", timeoutMs: 60000 });
       } else {
         await request("/api/v1/admin/products/duplicates/branded/search-collapse", {
           method: "POST",
@@ -118,7 +128,8 @@ export function BrandedDuplicateWorkspace({
             nameKey: collapseDraft.group.nameKey,
             candidateFingerprint: collapseDraft.group.candidateFingerprint,
             reason: collapseDraft.reason.trim()
-          }
+          },
+          timeoutMs: 60000
         });
       }
       setCollapseDraft(null);
@@ -130,7 +141,34 @@ export function BrandedDuplicateWorkspace({
     }
   }
 
-  return <div className="stack">
+  async function applySurvivor(group: BrandedProductDuplicateGroup, survivorProductId?: number) {
+    if (!survivorProductId || !group.brandKey || !group.nameKey || !group.candidateFingerprint) return;
+    setSaving(true);
+    setOperationNotice(null);
+    onError(null);
+    try {
+      await request("/api/v1/admin/products/duplicates/branded/survivor", {
+        method: "POST",
+        body: {
+          brandKey: group.brandKey,
+          nameKey: group.nameKey,
+          survivorProductId,
+          candidateFingerprint: group.candidateFingerprint
+        },
+        timeoutMs: 60000
+      });
+      setOperationNotice(locale === "tr"
+        ? `#${survivorProductId} survivor olarak seçildi ve aramaya uygulandı.`
+        : `#${survivorProductId} was selected as survivor and applied to search.`);
+      await reload();
+    } catch (error) {
+      onError(formatRequestError(error));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return <div className="stack branded-duplicate-workspace">
     <SectionToolbar
       title={locale === "tr" ? "Markalı ürün kimlik kararları" : "Branded product identity decisions"}
       description={locale === "tr" ? "Benzer marka ve ürün adlarını GTIN, kaynak, porsiyon ve besin kanıtıyla inceleyin." : "Review similar brand and product names using GTIN, source, serving and nutrition evidence."}
@@ -143,6 +181,8 @@ export function BrandedDuplicateWorkspace({
       <MetricCard label={locale === "tr" ? "Kararı güncel" : "Current decisions"} value={formatValue(decided)} hint={locale === "tr" ? "Görünür sayfa" : "Visible page"} />
       <MetricCard label={locale === "tr" ? "Yeniden incele" : "Stale decisions"} value={formatValue(stale)} hint={locale === "tr" ? "Aday kanıtı değişti" : "Candidate evidence changed"} />
     </div>
+
+    {operationNotice && <div className="canonical-operation-notice" role="status">{operationNotice}</div>}
 
     <CollapsiblePanel title={locale === "tr" ? "Adayları filtrele" : "Refine candidates"} description={locale === "tr" ? "Marka veya ürün adıyla arayın; önce en az varyant sinyali taşıyan grupları inceleyin." : "Search by brand or product name and prioritize groups with the fewest variant signals."} open={filtersOpen} onToggle={() => setFiltersOpen((current) => !current)}>
       <div className="canonical-filter-row">
@@ -190,7 +230,7 @@ export function BrandedDuplicateWorkspace({
     </Panel>}
 
     {groups.length === 0 && <Panel title={locale === "tr" ? "Markalı eşleşmeler" : "Branded matches"}><p className="empty-state">{locale === "tr" ? "Bu filtreye uyan aday kümesi bulunamadı." : "No candidate groups match this filter."}</p></Panel>}
-    {groups.map((group) => <BrandedGroupCard key={`${group.brandKey}:${group.nameKey}`} group={group} locale={locale} canManage={canManage} saving={saving} onDecision={startDecision} onCollapse={(selectedGroup, action) => setCollapseDraft({ group: selectedGroup, action, reason: "" })} />)}
+    {groups.map((group) => <BrandedGroupCard key={`${group.brandKey}:${group.nameKey}`} group={group} locale={locale} canManage={canManage} saving={saving} onDecision={startDecision} onApplySurvivor={applySurvivor} onCollapse={(selectedGroup, action) => setCollapseDraft({ group: selectedGroup, action, reason: "" })} />)}
 
     <PaginationControls
       page={data?.page ?? page}
@@ -211,6 +251,7 @@ function BrandedGroupCard({
   canManage,
   saving,
   onDecision,
+  onApplySurvivor,
   onCollapse
 }: {
   group: BrandedProductDuplicateGroup;
@@ -218,6 +259,7 @@ function BrandedGroupCard({
   canManage: boolean;
   saving: boolean;
   onDecision: (group: BrandedProductDuplicateGroup, decision: BrandedDuplicateDecision | "CLEAR", survivorProductId?: number) => void;
+  onApplySurvivor: (group: BrandedProductDuplicateGroup, survivorProductId?: number) => void;
   onCollapse: (group: BrandedProductDuplicateGroup, action: "APPLY" | "REVERT") => void;
 }) {
   const stored = group.storedDecision;
@@ -240,25 +282,25 @@ function BrandedGroupCard({
       <span>{stored.reviewedBy ?? "-"} / {stored.reviewedAt ?? "-"}</span>
     </div>}
     <div className="canonical-candidate-grid">
-      {(group.candidates ?? []).map((candidate) => <CandidateCard key={candidate.productId ?? candidate.sourceKey} candidate={candidate} locale={locale} canManage={canManage} saving={saving} group={group} onDecision={onDecision} />)}
+      {(group.candidates ?? []).map((candidate) => <CandidateCard key={candidate.productId ?? candidate.sourceKey} candidate={candidate} locale={locale} canManage={canManage} saving={saving} group={group} onApplySurvivor={onApplySurvivor} />)}
     </div>
     {canManage && <div className="button-row branded-group-actions">
       <button type="button" className="ghost-button" disabled={saving} onClick={() => onDecision(group, "KEEP_SEPARATE")}>{locale === "tr" ? "Varyantları ayrı tut" : "Keep variants separate"}</button>
       <button type="button" className="ghost-button" disabled={saving} onClick={() => onDecision(group, "BLOCKED")}>{locale === "tr" ? "Kanıt bekliyor" : "Block for evidence"}</button>
       {stored && <button type="button" className="ghost-button" disabled={saving} onClick={() => onDecision(group, "CLEAR")}>{locale === "tr" ? "Kararı temizle" : "Clear decision"}</button>}
-      {stored?.decision === "SURVIVOR_SELECTED" && !group.decisionStale && !group.searchCollapse?.active && <button type="button" className="primary-button" disabled={saving} onClick={() => onCollapse(group, "APPLY")}>{locale === "tr" ? "Aramada survivor uygula" : "Apply survivor to search"}</button>}
+      {stored?.decision === "SURVIVOR_SELECTED" && !group.decisionStale && !group.searchCollapse?.active && <button type="button" className="primary-button" disabled={saving} onClick={() => onApplySurvivor(group, stored.survivorProductId)}>{locale === "tr" ? "Survivor ve aramayı uygula" : "Apply survivor to search"}</button>}
       {group.searchCollapse?.active && <button type="button" className="ghost-button danger-button" disabled={saving} onClick={() => onCollapse(group, "REVERT")}>{locale === "tr" ? "Arama tekilleştirmesini geri al" : "Revert search collapse"}</button>}
     </div>}
   </section>;
 }
 
-function CandidateCard({ candidate, locale, canManage, saving, group, onDecision }: {
+function CandidateCard({ candidate, locale, canManage, saving, group, onApplySurvivor }: {
   candidate: BrandedProductDuplicateCandidate;
   locale: "tr" | "en";
   canManage: boolean;
   saving: boolean;
   group: BrandedProductDuplicateGroup;
-  onDecision: (group: BrandedProductDuplicateGroup, decision: BrandedDuplicateDecision, survivorProductId?: number) => void;
+  onApplySurvivor: (group: BrandedProductDuplicateGroup, survivorProductId?: number) => void;
 }) {
   return <article className="canonical-candidate">
     <div className="canonical-candidate-title"><div><h3>{candidate.productName ?? `Product #${candidate.productId}`}</h3><span>{candidate.dataSource ?? "-"} / {candidate.sourceKey ?? "-"}</span></div><Badge value={candidate.verificationStatus} tone={candidate.verificationStatus === "VERIFIED" ? "good" : "neutral"} /></div>
@@ -270,6 +312,6 @@ function CandidateCard({ candidate, locale, canManage, saving, group, onDecision
       <div><dt>{locale === "tr" ? "Kalori" : "Calories"}</dt><dd>{formatValue(candidate.calories)} kcal</dd></div>
       <div><dt>{locale === "tr" ? "Makrolar" : "Macros"}</dt><dd>P {formatValue(candidate.protein)} / C {formatValue(candidate.carbs)} / F {formatValue(candidate.fat)}</dd></div>
     </dl>
-    {canManage && <button type="button" className="primary-button" disabled={saving || !candidate.productId} onClick={() => onDecision(group, "SURVIVOR_SELECTED", candidate.productId)}>{locale === "tr" ? "Survivor olarak seç" : "Select survivor"}</button>}
+    {canManage && <button type="button" className="primary-button" disabled={saving || !candidate.productId || group.searchCollapse?.active} onClick={() => onApplySurvivor(group, candidate.productId)}>{saving ? (locale === "tr" ? "Uygulanıyor" : "Applying") : (locale === "tr" ? "Seç ve aramada uygula" : "Select and apply to search")}</button>}
   </article>;
 }

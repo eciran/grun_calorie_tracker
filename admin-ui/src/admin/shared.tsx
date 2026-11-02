@@ -408,7 +408,7 @@ export function MiniNotificationList({ notifications }: { notifications: Notific
   );
 }
 
-export function useEndpoint<T>(path: string, onError: (message: string | null) => void, enabled = true) {
+export function useEndpoint<T>(path: string, onError: (message: string | null) => void, enabled = true, timeoutMs?: number) {
   const [data, setData] = useState<T | null>(null);
   const [state, setState] = useState<LoadState>("idle");
   const [reloadToken, setReloadToken] = useState(0);
@@ -430,7 +430,7 @@ export function useEndpoint<T>(path: string, onError: (message: string | null) =
 
     async function fetchData() {
       try {
-        const nextData = await request<T>(stablePath);
+        const nextData = await request<T>(stablePath, timeoutMs ? { timeoutMs } : undefined);
         if (!active) return;
         setData(nextData);
         setState("ready");
@@ -445,7 +445,7 @@ export function useEndpoint<T>(path: string, onError: (message: string | null) =
     return () => {
       active = false;
     };
-  }, [stablePath, reloadToken, enabled]);
+  }, [stablePath, reloadToken, enabled, timeoutMs]);
 
   return { data, state, reload: load };
 }

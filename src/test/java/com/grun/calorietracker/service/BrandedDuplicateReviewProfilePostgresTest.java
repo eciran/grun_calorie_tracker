@@ -92,6 +92,20 @@ class BrandedDuplicateReviewProfilePostgresTest {
     }
 
     @Test
+    void prefilteredNameAndBrandSearchReturnTheCompleteIdentityGroup() {
+        var byName = service.getCandidates(0, 10, "Fixture Food", null);
+        assertThat(byName.totalElements()).isOne();
+        assertThat(byName.content()).hasSize(1);
+        assertThat(byName.content().get(0).candidates()).hasSize(2);
+
+        var byBrand = service.getCandidates(0, 10, "Fixture Brand", null);
+        assertThat(byBrand.totalElements()).isOne();
+        assertThat(byBrand.content().get(0).candidates()).hasSize(2);
+
+        assertThat(service.getCandidates(0, 10, "No Such Product", null).content()).isEmpty();
+    }
+
+    @Test
     void allTwentyOneFieldsInvalidateReviewWithoutRequiringIdentityChange() {
         String before = fingerprint();
         for (String field : new String[]{"calories", "protein", "carbs", "fat", "fiber", "sugar", "sodium", "cholesterol", "potassium",

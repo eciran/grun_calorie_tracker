@@ -51,21 +51,22 @@ def run(output):
         if result.returncode:
             raise ValueError("Backend PostgreSQL tests failed; inspect private Maven evidence")
         suite = ET.parse(report).getroot()
-        if suite.attrib["tests"] != "5" or any(int(suite.attrib.get(k, "0")) for k in ("failures", "errors", "skipped")):
-            raise ValueError("All five actual backend PostgreSQL tests must run/pass")
+        if suite.attrib["tests"] != "6" or any(int(suite.attrib.get(k, "0")) for k in ("failures", "errors", "skipped")):
+            raise ValueError("All six actual backend PostgreSQL tests must run/pass")
         files = ["src/main/java/com/grun/calorietracker/service/BrandedProductDuplicateAnalysisService.java",
                  "src/main/java/com/grun/calorietracker/service/support/BrandedDuplicateFingerprint.java",
                  "src/test/java/com/grun/calorietracker/service/BrandedDuplicateReviewProfilePostgresTest.java"]
-        proof = {"status": "PASS", "postgres": "18.3", "tests": 5, "failures": 0, "skipped": 0,
+        proof = {"status": "PASS", "postgres": "18.3", "tests": 6, "failures": 0, "skipped": 0,
                  "scope": "REAL_BACKEND_EXACT_AND_PAGE_SQL_ON_DISPOSABLE_PROJECTION_NOT_A_FULL_MIGRATION",
                  "checks": ["ALL_21_NUTRIENTS_DRIFT", "NULL_VS_ZERO", "MASS_VOLUME_STATE_MARKETS",
                             "PORTIONS_LOCALIZED_LABELS_SOURCE_VERSION", "TELEMETRY_DOES_NOT_INVALIDATE",
                             "PAGED_DECISION_MARKED_STALE", "OLD_APPROVAL_APPLY_REJECTED_WITH_NO_COLLAPSE_WRITE",
-                            "CANONICAL_BRAND_AND_SOURCE_CATEGORY_TAG_DRIFT"],
+                            "CANONICAL_BRAND_AND_SOURCE_CATEGORY_TAG_DRIFT",
+                            "PREFILTERED_NAME_AND_BRAND_SEARCH_PRESERVES_COMPLETE_GROUP"],
                  "sha256": {f: hashlib.sha256((ROOT / f).read_bytes()).hexdigest() for f in files},
                  "awsCatalogWrites": 0, "deploy": False, "commit": False, "push": False, "container": container}
         (output / "proof.json").write_text(json.dumps(proof, indent=2) + "\n", encoding="utf-8")
-        print(json.dumps({"status": "PASS", "postgres": "18.3", "tests": 5, "awsWrites": 0}))
+        print(json.dumps({"status": "PASS", "postgres": "18.3", "tests": 6, "awsWrites": 0}))
     finally:
         if container:
             if docker("inspect", container, "--format", '{{index .Config.Labels "grun.test.owner"}}') != owner:

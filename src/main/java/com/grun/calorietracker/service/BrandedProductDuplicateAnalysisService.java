@@ -17,6 +17,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Service
 public class BrandedProductDuplicateAnalysisService {
@@ -44,7 +45,7 @@ public class BrandedProductDuplicateAnalysisService {
             )::text, 'UTF8')), 'hex') review_profile_fingerprint
             """;
 
-    private static final String IDENTITY_CTE = """
+    private static final String IDENTITY_CTE_PREFIX = """
             WITH branded_identity AS (
                 SELECT item.id,
                        coalesce(brand.canonical_name, nullif(trim(item.brand), ''), '<missing-brand>') brand_name,
@@ -65,6 +66,9 @@ public class BrandedProductDuplicateAnalysisService {
                   AND coalesce(item.is_custom, false) = false
                   AND item.publication_status = 'PUBLISHED'
                   AND coalesce(item.display_name, item.name) IS NOT NULL
+            """;
+
+    private static final String IDENTITY_CTE_SUFFIX = """
             ), duplicate_groups AS (
                 SELECT brand_key, name_key,
                        min(brand_name) brand_name,
@@ -101,21 +105,41 @@ public class BrandedProductDuplicateAnalysisService {
             )
             """;
 
+    private static final String IDENTITY_CTE = IDENTITY_CTE_PREFIX + IDENTITY_CTE_SUFFIX;
+
+    private static final String SEARCH_IDENTITY_CTE = IDENTITY_CTE_PREFIX + """
+                  AND (
+                       lower(brand.canonical_name) LIKE CAST(? AS text)
+                    OR lower(item.brand) LIKE CAST(? AS text)
+                    OR lower(item.display_name) LIKE CAST(? AS text)
+                    OR lower(item.name) LIKE CAST(? AS text)
+                    OR regexp_replace(lower(coalesce(item.brand, '')), '[^[:alnum:]]+', '', 'g') LIKE CAST(? AS text)
+                    OR regexp_replace(lower(coalesce(item.display_name, item.name, '')), '[^[:alnum:]]+', '', 'g') LIKE CAST(? AS text)
+                  )
+            """ + IDENTITY_CTE_SUFFIX;
+
+    private static final String EXACT_IDENTITY_CTE = IDENTITY_CTE_PREFIX + """
+                  AND coalesce('brand:' || item.brand_id::text,
+                               'legacy:' || regexp_replace(lower(coalesce(item.brand, '')), '[^[:alnum:]]+', '', 'g')) = CAST(? AS text)
+                  AND regexp_replace(lower(coalesce(item.display_name, item.name, '')), '[^[:alnum:]]+', '', 'g') = CAST(? AS text)
+            """ + IDENTITY_CTE_SUFFIX;
+
     private static final String FILTERED_CTE = """
             , filtered_groups AS (
                 SELECT * FROM classified
-                WHERE (CAST(? AS text) IS NULL OR lower(brand_name) LIKE CAST(? AS text)
-                       OR lower(representative_name) LIKE CAST(? AS text))
-                  AND (CAST(? AS boolean) IS NULL OR variant_signal = CAST(? AS boolean))
+                WHERE (CAST(? AS boolean) IS NULL OR variant_signal = CAST(? AS boolean))
             )
             """;
 
     private static final String COUNT_SQL = IDENTITY_CTE + FILTERED_CTE +
             "SELECT count(*) FROM filtered_groups";
 
-    private static final String PAGE_SQL = IDENTITY_CTE + FILTERED_CTE + """
+    private static final String SEARCH_COUNT_SQL = SEARCH_IDENTITY_CTE + FILTERED_CTE +
+            "SELECT count(*) FROM filtered_groups";
+
+    private static final String PAGE_BODY_SQL = """
             , paged_groups AS (
-                SELECT *
+                SELECT *, count(*) OVER () total_elements
                 FROM filtered_groups
                 ORDER BY variant_signal ASC, missing_serving_count ASC, missing_nutrition_count ASC,
                          product_count DESC, brand_name, representative_name
@@ -150,7 +174,11 @@ public class BrandedProductDuplicateAnalysisService {
                      item.quality_score DESC NULLS LAST, item.id
             """;
 
-    private static final String EXACT_GROUP_SQL = IDENTITY_CTE + """
+    private static final String PAGE_SQL = IDENTITY_CTE + FILTERED_CTE + PAGE_BODY_SQL;
+
+    private static final String SEARCH_PAGE_SQL = SEARCH_IDENTITY_CTE + FILTERED_CTE + PAGE_BODY_SQL;
+
+    private static final String EXACT_GROUP_SQL = EXACT_IDENTITY_CTE + """
             SELECT group_data.*, item.id, item.product_name, item.barcode, item.source_key,
                    item.market_region::text, item.preparation_state::text,
                    item.serving_size_grams, item.serving_unit,
@@ -174,7 +202,6 @@ public class BrandedProductDuplicateAnalysisService {
               ON resolution.brand_key = group_data.brand_key AND resolution.name_key = group_data.name_key
             LEFT JOIN food_branded_duplicate_search_collapses collapse_state
               ON collapse_state.decision_id = resolution.id
-            WHERE group_data.brand_key = ? AND group_data.name_key = ?
             ORDER BY item.quality_score DESC NULLS LAST, item.id
             """;
 
@@ -196,15 +223,18 @@ public class BrandedProductDuplicateAnalysisService {
         String query = requestedQuery == null || requestedQuery.isBlank()
                 ? null
                 : "%" + requestedQuery.trim().toLowerCase(Locale.ROOT) + "%";
-        long total = jdbcTemplate.queryForObject(
-                COUNT_SQL,
-                Long.class,
-                query, query, query, variantSignal, variantSignal
-        );
-        int totalPages = total == 0 ? 0 : (int) Math.ceil((double) total / size);
-
+        String normalizedQuery = query == null ? null : "%" + requestedQuery.trim()
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("[^\\p{L}\\p{N}]+", "") + "%";
         Map<String, GroupBuilder> groups = new LinkedHashMap<>();
-        jdbcTemplate.query(PAGE_SQL, resultSet -> {
+        AtomicLong total = new AtomicLong(-1L);
+        String pageSql = query == null ? PAGE_SQL : SEARCH_PAGE_SQL;
+        Object[] arguments = query == null
+                ? new Object[]{variantSignal, variantSignal, size, (long) page * size}
+                : new Object[]{query, query, query, query, normalizedQuery, normalizedQuery,
+                variantSignal, variantSignal, size, (long) page * size};
+        jdbcTemplate.query(pageSql, resultSet -> {
+            total.compareAndSet(-1L, resultSet.getLong("total_elements"));
             String brandKey = resultSet.getString("brand_key");
             String nameKey = resultSet.getString("name_key");
             String key = brandKey + "\u0000" + nameKey;
@@ -249,11 +279,27 @@ public class BrandedProductDuplicateAnalysisService {
                     resultSet.getString("data_source")
             ));
             group.reviewProfiles.put(resultSet.getLong("id"), resultSet.getString("review_profile_fingerprint"));
-        }, query, query, query, variantSignal, variantSignal, size, (long) page * size);
+        }, arguments);
+
+        if (total.get() < 0L) {
+            total.set(page == 0 ? 0L : countCandidates(query, normalizedQuery, variantSignal));
+        }
+        int totalPages = total.get() == 0 ? 0 : (int) Math.ceil((double) total.get() / size);
 
         List<BrandedProductDuplicateGroupDto> content = groups.values().stream().map(GroupBuilder::build).toList();
         return new BrandedProductDuplicateGroupPageDto(
-                content, page, size, total, totalPages, page == 0, page >= totalPages - 1
+                content, page, size, total.get(), totalPages, page == 0, page >= totalPages - 1
+        );
+    }
+
+    private long countCandidates(String query, String normalizedQuery, Boolean variantSignal) {
+        if (query == null) {
+            return jdbcTemplate.queryForObject(COUNT_SQL, Long.class, variantSignal, variantSignal);
+        }
+        return jdbcTemplate.queryForObject(
+                SEARCH_COUNT_SQL, Long.class,
+                query, query, query, query, normalizedQuery, normalizedQuery,
+                variantSignal, variantSignal
         );
     }
 

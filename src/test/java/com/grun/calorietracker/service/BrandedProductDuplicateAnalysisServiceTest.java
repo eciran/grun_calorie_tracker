@@ -13,7 +13,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class BrandedProductDuplicateAnalysisServiceTest {
@@ -34,6 +33,7 @@ class BrandedProductDuplicateAnalysisServiceTest {
         String count = (String) ReflectionTestUtils.getField(BrandedProductDuplicateAnalysisService.class, "COUNT_SQL");
         String page = (String) ReflectionTestUtils.getField(BrandedProductDuplicateAnalysisService.class, "PAGE_SQL");
         String exact = (String) ReflectionTestUtils.getField(BrandedProductDuplicateAnalysisService.class, "EXACT_GROUP_SQL");
+        String search = (String) ReflectionTestUtils.getField(BrandedProductDuplicateAnalysisService.class, "SEARCH_IDENTITY_CTE");
         assertThat(profile).contains("sha256", "to_jsonb(food)", "food_item_market_regions",
                 "food_item_serving_options", "food_item_serving_option_localizations", "food_product_source_evidence",
                 "- 'usage_count' - 'search_selection_count'", "to_jsonb(brand_row)", "food_item_source_categories");
@@ -41,6 +41,10 @@ class BrandedProductDuplicateAnalysisServiceTest {
         assertThat(count).doesNotContain("review_profile_fingerprint", "food_item_serving_options");
         assertThat(page).contains(profile);
         assertThat(exact).contains(profile);
+        assertThat(search.indexOf("lower(item.display_name) LIKE"))
+                .isLessThan(search.indexOf("GROUP BY brand_key, name_key"));
+        assertThat(exact.indexOf("= CAST(? AS text)"))
+                .isLessThan(exact.indexOf("GROUP BY brand_key, name_key"));
     }
 
     @Mock
@@ -48,16 +52,11 @@ class BrandedProductDuplicateAnalysisServiceTest {
 
     @Test
     void returnsEmptyPageAndNormalizesPaginationBounds() {
-        when(jdbcTemplate.queryForObject(
-                anyString(), eq(Long.class),
-                eq("%wispa%"), eq("%wispa%"), eq("%wispa%"), eq(false), eq(false)
-        )).thenReturn(0L);
         doNothing().when(jdbcTemplate).query(
                 anyString(),
                 any(RowCallbackHandler.class),
-                eq("%wispa%"),
-                eq("%wispa%"),
-                eq("%wispa%"),
+                eq("%wispa%"), eq("%wispa%"), eq("%wispa%"), eq("%wispa%"),
+                eq("%wispa%"), eq("%wispa%"),
                 eq(false),
                 eq(false),
                 eq(100),

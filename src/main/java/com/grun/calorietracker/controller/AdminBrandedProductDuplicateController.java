@@ -5,7 +5,9 @@ import com.grun.calorietracker.dto.BrandedProductDuplicateDecisionDto;
 import com.grun.calorietracker.dto.BrandedProductDuplicateDecisionRequestDto;
 import com.grun.calorietracker.dto.BrandedDuplicateSearchCollapseDto;
 import com.grun.calorietracker.dto.BrandedDuplicateSearchCollapseRequestDto;
+import com.grun.calorietracker.dto.BrandedDuplicateSurvivorApplyRequestDto;
 import com.grun.calorietracker.service.BrandedDuplicateSearchCollapseService;
+import com.grun.calorietracker.service.BrandedDuplicateSurvivorApplicationService;
 import com.grun.calorietracker.service.BrandedProductDuplicateAnalysisService;
 import com.grun.calorietracker.service.BrandedProductDuplicateDecisionService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -43,6 +45,7 @@ public class AdminBrandedProductDuplicateController {
     private final BrandedProductDuplicateAnalysisService analysisService;
     private final BrandedProductDuplicateDecisionService decisionService;
     private final BrandedDuplicateSearchCollapseService collapseService;
+    private final BrandedDuplicateSurvivorApplicationService survivorApplicationService;
 
     @GetMapping
     @Operation(
@@ -93,6 +96,17 @@ public class AdminBrandedProductDuplicateController {
             @RequestBody @jakarta.validation.Valid BrandedProductDuplicateDecisionRequestDto request,
             @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(decisionService.decide(
+                request, userDetails == null ? null : userDetails.getUsername()
+        ));
+    }
+
+    @PostMapping("/survivor")
+    @Operation(summary = "Select survivor and apply it to search",
+            description = "Atomically records the selected survivor and suppresses the reviewed non-survivors from name search. Product rows, GTINs and source evidence remain intact.")
+    public ResponseEntity<BrandedDuplicateSearchCollapseDto> selectAndApplySurvivor(
+            @RequestBody @jakarta.validation.Valid BrandedDuplicateSurvivorApplyRequestDto request,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(survivorApplicationService.selectAndApply(
                 request, userDetails == null ? null : userDetails.getUsername()
         ));
     }
