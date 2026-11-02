@@ -578,6 +578,12 @@ public class FoodProductImportServiceImpl implements FoodProductImportService {
         if (!sourceCategoryTags.isEmpty()) {
             product.setSourceCategoryTags(sourceCategoryTags);
         }
+        referenceUnit = com.grun.calorietracker.service.support.FoodEffectiveMeasurementContract.referenceUnit(
+                referenceUnit,
+                resolveServingUnit(row),
+                product.getSourceCategoryTags()
+        );
+        product.setNutritionReferenceUnit(referenceUnit);
         mergeMarketAvailability(product, row, regionResolution.region());
         product.setCanonicalFoodKey(FoodProductCanonicalKeyRules.resolve(product));
         applyImportMetadata(product, row, importedBy, importMode, sourceFormat);

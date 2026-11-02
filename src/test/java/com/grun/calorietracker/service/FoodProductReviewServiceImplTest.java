@@ -483,6 +483,26 @@ class FoodProductReviewServiceImplTest {
     }
 
     @Test
+    void updateProductReview_explicitlyClearsLegacyServingMetadata() {
+        FoodItemEntity product = reviewProduct();
+        product.setNutritionReferenceUnit(com.grun.calorietracker.enums.FoodNutritionReferenceUnit.PER_100ML);
+        product.setServingSizeGrams(250.0);
+        product.setServingUnit("MILLILITER");
+        FoodProductReviewRequestDto request = new FoodProductReviewRequestDto();
+        request.setClearServingSize(true);
+        request.setClearServingUnit(true);
+
+        when(foodItemRepository.findById(1L)).thenReturn(Optional.of(product));
+        when(foodItemRepository.save(product)).thenReturn(product);
+
+        foodProductReviewService.updateProductReview(1L, request, "admin@grun.app");
+
+        assertEquals(null, product.getServingSizeGrams());
+        assertEquals(null, product.getServingUnit());
+        verify(foodProductReviewAuditRepository).saveAll(any());
+    }
+
+    @Test
     void updateProductReview_whenVerifiedProductNameIsBlank_throwsIllegalArgumentException() {
         FoodItemEntity product = new FoodItemEntity();
         product.setId(1L);

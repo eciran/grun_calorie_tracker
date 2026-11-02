@@ -22,10 +22,11 @@ public final class FoodPortionUnitResolver {
     }
 
     public static FoodPortionUnit defaultUnit(FoodItemEntity product) {
-        if (product != null && product.getNutritionReferenceUnit() == FoodNutritionReferenceUnit.PER_SERVING) {
+        FoodNutritionReferenceUnit reference = FoodEffectiveMeasurementContract.referenceUnit(product);
+        if (reference == FoodNutritionReferenceUnit.PER_SERVING) {
             return FoodPortionUnit.SERVING;
         }
-        return product != null && product.getNutritionReferenceUnit() == FoodNutritionReferenceUnit.PER_100ML
+        return reference == FoodNutritionReferenceUnit.PER_100ML
                 ? FoodPortionUnit.MILLILITER : FoodPortionUnit.GRAM;
     }
 

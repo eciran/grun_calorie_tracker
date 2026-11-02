@@ -137,6 +137,49 @@ def common_option_review_sql(decisions_path):
     return sql.replace('ROLLBACK;',extra+'\nROLLBACK;')
 
 
+def package_duplicate_review_sql(decisions_path):
+    selected = [json.loads(line) for line in decisions_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    ids = sorted({int(product_id) for group in selected for product_id in group["productIds"]})
+    if not selected or len(selected) > 250 or not ids or len(ids) > 1000:
+        raise ValueError("Bounded package duplicate selection is required")
+    values = ",".join(map(str, ids))
+    return f"""
+BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;
+SET LOCAL statement_timeout='90s';
+SET LOCAL lock_timeout='3s';
+SELECT json_build_object('kind','start','time',now(),'readonly',current_setting('transaction_read_only'),
+  'count',(SELECT count(*) FROM food_items WHERE id IN ({values})));
+WITH selected AS (
+  SELECT f.*,
+         coalesce('brand:' || f.brand_id::text,
+                  'legacy:' || regexp_replace(lower(coalesce(f.brand, '')), '[^[:alnum:]]+', '', 'g')) brand_key,
+         regexp_replace(lower(coalesce(f.display_name, f.name, '')), '[^[:alnum:]]+', '', 'g') name_key
+  FROM food_items f WHERE f.id IN ({values})
+)
+SELECT json_build_object('kind','row','row',jsonb_build_object(
+  'id',f.id,'name',f.name,'display_name',f.display_name,'brand',f.brand,'brand_id',f.brand_id,
+  'brand_key',f.brand_key,'name_key',f.name_key,'barcode',f.barcode,'source_key',f.source_key,
+  'publication_status',f.publication_status,'verification_status',f.verification_status,
+  'quality_score',f.quality_score,'usage_count',f.usage_count,
+  'search_selection_count',to_jsonb(f)->>'search_selection_count','data_source',f.data_source,
+  'market_region',f.market_region,'preparation_state',f.preparation_state,
+  'nutrition_reference_unit',f.nutrition_reference_unit,'calories',f.calories,
+  'protein',f.protein,'carbs',f.carbs,'fat',f.fat,
+  'serving_size_grams',f.serving_size_grams,'serving_unit',f.serving_unit,
+  'package_quantity',to_jsonb(f)->>'package_quantity','package_unit',to_jsonb(f)->>'package_unit',
+  'decision_id',d.id,'decision',d.decision,'decision_survivor_id',d.survivor_food_item_id,
+  'decision_fingerprint',d.candidate_fingerprint,
+  'collapse_id',c.id,'collapse_active',c.active,'collapse_survivor_id',c.survivor_food_item_id
+))
+FROM selected f
+LEFT JOIN food_branded_duplicate_decisions d ON d.brand_key=f.brand_key AND d.name_key=f.name_key
+LEFT JOIN food_branded_duplicate_search_collapses c ON c.decision_id=d.id
+ORDER BY f.id;
+SELECT json_build_object('kind','end','count',(SELECT count(*) FROM food_items WHERE id IN ({values})));
+ROLLBACK;
+"""
+
+
 def collect(args):
     def aws(*command):
         result = subprocess.run(["aws", *command, "--profile", args.profile, "--region", "eu-west-1",
@@ -144,14 +187,16 @@ def collect(args):
                                 env={**os.environ, "AWS_PAGER": "", "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8",
                                      "AWS_CLI_OUTPUT_ENCODING": "UTF-8"}, timeout=45)
         if result.returncode:
-            raise RuntimeError("AWS command failed: " + command[0] + "/" + command[1])
+            detail = (result.stderr or "").strip().replace("\n", " ")[:1000]
+            raise RuntimeError("AWS command failed: " + command[0] + "/" + command[1]
+                               + (" (" + detail + ")" if detail else ""))
         return json.loads(result.stdout)
 
     definition = json.loads(args.template.read_text(encoding="utf-8-sig"))
     if len(definition.get("containerDefinitions", [])) != 1:
         raise ValueError("Only one read-only PostgreSQL container is allowed")
     is_r6 = args.scope in {"r6-audit", "r6-everyday", "r6-release", "r6-integrity", "r6-names", "r6-identities", "r6-lifeway", "r6-edamame", "r6-common", "r5-common", "r7-presentation", "r7-title-case"}
-    is_r5 = args.scope in {"r5-servings", "r5-release", "r5-comparison"} or is_r6
+    is_r5 = args.scope in {"r5-servings", "r5-release", "r5-comparison", "package-families", "package-duplicates", "package-metadata"} or is_r6
     prefix = "r6-readonly" if is_r6 else "r5-readonly" if is_r5 else "r3-readonly"
     family = "grun-staging-r6-audit-readonly" if is_r6 else "grun-staging-r5-serving-readonly" if is_r5 else "grun-staging-r3-source-readonly"
     definition["family"] = family
@@ -183,6 +228,38 @@ SET LOCAL lock_timeout='3s';
       'food_concept_key',to_jsonb(f)->>'food_concept_key','composition_variant_key',to_jsonb(f)->>'composition_variant_key'
     )) FROM food_items f WHERE {predicate} ORDER BY id;
 SELECT json_build_object('kind','end','count',(SELECT count(*) FROM food_items WHERE {predicate}));
+ROLLBACK;
+"""
+    if args.scope == "package-families":
+        sql = Path(__file__).with_name("sql").joinpath("export-package-family-candidates.sql").read_text(encoding="utf-8")
+    if args.scope == "package-duplicates":
+        if not args.decisions:
+            raise ValueError("Exact package duplicate selection is required")
+        sql = package_duplicate_review_sql(args.decisions)
+    if args.scope == "package-metadata":
+        sql = """
+BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;
+SET LOCAL statement_timeout='90s';
+SET LOCAL lock_timeout='3s';
+SELECT json_build_object('kind','start','time',now(),'readonly',current_setting('transaction_read_only'),
+  'count',1);
+SELECT json_build_object('kind','row','row',json_build_object(
+  'id','package-metadata',
+  'total',count(*),
+  'published',count(*) FILTER (WHERE publication_status='PUBLISHED'),
+  'package_metadata_complete',count(*) FILTER (WHERE nullif(to_jsonb(food_items)->>'package_quantity','') IS NOT NULL AND nullif(to_jsonb(food_items)->>'package_unit','') IS NOT NULL),
+  'published_package_metadata_complete',count(*) FILTER (WHERE publication_status='PUBLISHED' AND nullif(to_jsonb(food_items)->>'package_quantity','') IS NOT NULL AND nullif(to_jsonb(food_items)->>'package_unit','') IS NOT NULL),
+  'published_branded_package_metadata_complete',count(*) FILTER (WHERE publication_status='PUBLISHED' AND catalog_type='BRANDED_PRODUCT' AND nullif(to_jsonb(food_items)->>'package_quantity','') IS NOT NULL AND nullif(to_jsonb(food_items)->>'package_unit','') IS NOT NULL),
+  'product_family_table_exists',to_regclass('public.food_product_families') IS NOT NULL,
+  'product_family_member_table_exists',to_regclass('public.food_product_family_members') IS NOT NULL,
+  'product_family_count',CASE WHEN to_regclass('public.food_product_families') IS NULL THEN NULL ELSE (SELECT count(*) FROM food_product_families) END,
+  'product_family_member_count',CASE WHEN to_regclass('public.food_product_family_members') IS NULL THEN NULL ELSE (SELECT count(*) FROM food_product_family_members) END,
+  'active_duplicate_decision_count',(SELECT count(*) FROM food_branded_duplicate_decisions),
+  'active_search_collapse_count',(SELECT count(*) FROM food_branded_duplicate_search_collapses WHERE active),
+  'search_collapse_member_count',(SELECT count(*) FROM food_branded_duplicate_search_collapse_members),
+  'latest_flyway_version',(SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank DESC LIMIT 1)
+)) FROM food_items;
+SELECT json_build_object('kind','end','count',1);
 ROLLBACK;
 """
     if args.scope == "r5-servings":
@@ -311,7 +388,34 @@ sleep 15
             token = next_token
         else:
             raise RuntimeError("Log pagination incomplete")
-        records = decode_transport([json.loads(m.strip()) for m in messages if m.strip().startswith('{')])
+        raw_records = [json.loads(m.strip()) for m in messages if m.strip().startswith('{')]
+        # A stopped ECS task can precede delivery of its final CloudWatch events.
+        # Retry the complete stream, never accept a partial snapshot.
+        for delivery_attempt in range(7):
+            headers = [r for r in raw_records if r.get("kind") == "transport"]
+            chunks = [r for r in raw_records if r.get("kind") == "chunk"]
+            if not headers or (len(headers) == 1 and len(chunks) == headers[0]["chunks"]):
+                break
+            if delivery_attempt == 6:
+                break
+            time.sleep(20)
+            refreshed = []
+            token = None
+            for _ in range(1000):
+                command = ["logs", "get-log-events", "--log-group-name", container["logConfiguration"]["options"]["awslogs-group"],
+                           "--log-stream-name", stream, "--start-from-head"]
+                if token:
+                    command += ["--next-token", token]
+                page = aws(*command)
+                refreshed.extend(e["message"] for e in page["events"])
+                next_token = page["nextForwardToken"]
+                if next_token == token:
+                    break
+                token = next_token
+            else:
+                raise RuntimeError("Log pagination incomplete during delivery retry")
+            raw_records = [json.loads(m.strip()) for m in refreshed if m.strip().startswith('{')]
+        records = decode_transport(raw_records)
         rows, start = snapshot_rows(records)
         path = args.output / "catalog.csv"
         with path.open("w", encoding="utf-8", newline="") as handle:
@@ -326,7 +430,7 @@ sleep 15
         proof["sqlSha256"] = hashlib.sha256(sql.encode()).hexdigest()
         if is_r6 or args.scope == "r5-comparison":
             proof["schemaVersion"] = start.get("schema")
-        if args.scope in {"r5-release", "r5-comparison", "r6-names", "r6-identities", "r6-lifeway", "r6-edamame", "r6-common", "r5-common", "r7-presentation"}:
+        if args.scope in {"r5-release", "r5-comparison", "r6-names", "r6-identities", "r6-lifeway", "r6-edamame", "r6-common", "r5-common", "r7-presentation", "package-duplicates"}:
             proof["decisionsSha256"] = hashlib.sha256(args.decisions.read_bytes()).hexdigest()
         (args.output / "snapshot-proof.json").write_text(json.dumps(proof, indent=2), encoding="utf-8")
         print(json.dumps(proof))
@@ -348,4 +452,7 @@ if __name__ == "__main__":
     parser.add_argument("--scope", choices=("r3-sources", "r5-servings", "r5-release", "r5-comparison", "r6-audit", "r6-everyday", "r6-release", "r6-integrity", "r6-names", "r6-identities", "r6-lifeway", "r6-edamame", "r6-common", "r5-common", "r7-presentation", "r7-title-case", "r7-naming-metrics", "r7-naming-issues"), default="r3-sources")
     parser.add_argument("--operation", help="Exact approved R6 operation marker for a read-only post-check")
     parser.add_argument("--decisions", type=Path, help="Exact product IDs for the R5 full before-image read")
+    next(action for action in parser._actions if action.dest == "scope").choices += (
+        "package-families", "package-duplicates", "package-metadata"
+    )
     collect(parser.parse_args())

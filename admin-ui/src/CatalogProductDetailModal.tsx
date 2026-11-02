@@ -11,6 +11,8 @@ import {
   PRODUCT_MINERAL_FIELDS,
   PRODUCT_VITAMIN_FIELDS,
   productReviewNutritionPayload,
+  measurementDraftForReference,
+  servingUnitForReference,
   toProductReviewDraft,
   type ProductReviewDraft,
   type ProductReviewNumberField
@@ -151,7 +153,7 @@ export function CatalogProductDetailModal({ product, canManage, onClose, onSaved
             {editing && <div className="catalog-detail-grid"><SelectField label={tx("Image status", "Görsel durumu")} editing value={draft.imageStatus} values={IMAGE_STATUSES} onChange={value => updateDraft("imageStatus", value)} /><SelectField label={tx("Image source", "Görsel kaynağı")} editing value={draft.imageSource} values={IMAGE_SOURCES} onChange={value => updateDraft("imageSource", value)} /></div>}
           </section>}
           {tab === "nutrition" && <section className="catalog-detail-pane">
-            <div className="catalog-detail-grid"><SelectField label={tx("Nutrition basis", "Beslenme temeli")} editing={editing} value={draft.nutritionBasis} values={["SOURCE_REPORTED", "CALCULATED", "ESTIMATED"]} onChange={value => updateDraft("nutritionBasis", value)} /><SelectField label={tx("Reference unit", "Referans ölçü")} editing={editing} value={draft.nutritionReferenceUnit} values={["PER_100G", "PER_100ML", "PER_SERVING"]} onChange={value => updateDraft("nutritionReferenceUnit", value)} /><NumberField label={tx("Serving size", "Porsiyon miktarı")} editing={editing} value={draft.servingSizeGrams} suffix={servingUnitSuffix(draft.servingUnit, draft.nutritionReferenceUnit)} onChange={value => updateDraft("servingSizeGrams", value)} /><Field label={tx("Serving unit", "Porsiyon birimi")} editing={editing} value={draft.servingUnit} onChange={value => updateDraft("servingUnit", value)} /></div>
+            <div className="catalog-detail-grid"><SelectField label={tx("Nutrition basis", "Beslenme temeli")} editing={editing} value={draft.nutritionBasis} values={["SOURCE_REPORTED", "CALCULATED", "ESTIMATED"]} onChange={value => updateDraft("nutritionBasis", value)} /><SelectField label={tx("Reference unit", "Referans ölçü")} editing={editing} value={draft.nutritionReferenceUnit} values={["PER_100G", "PER_100ML", "PER_SERVING"]} onChange={value => setDraft(current => measurementDraftForReference(current, value))} /><NumberField label={tx("Serving size", "Porsiyon miktarı")} editing={editing} value={draft.servingSizeGrams} suffix={servingUnitSuffix(draft.servingUnit, draft.nutritionReferenceUnit)} onChange={value => updateDraft("servingSizeGrams", value)} /><SelectField label={tx("Serving unit", "Porsiyon birimi")} editing={editing} value={draft.servingUnit} values={["", servingUnitForReference(draft.nutritionReferenceUnit)]} onChange={value => updateDraft("servingUnit", value)} /></div>
             <NutritionGroup title={tx("Macros", "Makrolar")} fields={PRODUCT_MACRO_FIELDS} draft={draft} editing={editing} onChange={updateDraft} />
             <NutritionGroup title={tx("Minerals", "Mineraller")} fields={PRODUCT_MINERAL_FIELDS} draft={draft} editing={editing} onChange={updateDraft} />
             <NutritionGroup title={tx("Vitamins", "Vitaminler")} fields={PRODUCT_VITAMIN_FIELDS} draft={draft} editing={editing} onChange={updateDraft} />

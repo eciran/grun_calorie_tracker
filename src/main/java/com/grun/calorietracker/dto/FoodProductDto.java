@@ -258,4 +258,7 @@ public class FoodProductDto {
 
     @Schema(description = "Barcode-specific packages in the same reviewed product family.")
     private List<FoodProductPackageVariantDto> packageVariants;
+
+    @Schema(description = "Unified ready amounts for the add-food screen. Includes verified servings and reviewed package sizes without requiring a separate product navigation step.")
+    private List<FoodConsumptionOptionDto> consumptionOptions;
 }

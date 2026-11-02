@@ -7,9 +7,9 @@ import process from "node:process";
 
 const BASE_URL = "https://www.calorieking.com";
 const ALLOWED_HOST = "www.calorieking.com";
-const DEFAULT_START_URL = `${BASE_URL}/gb/en/foods/b/calories-in-kelloggs/FgI-Ff92T_OwkKtxrPdTWg`;
-const DEFAULT_OUTPUT = "outputs/calorieking-example/kelloggs-products.json";
-const DEFAULT_CSV_OUTPUT = "outputs/calorieking-example/kelloggs-products.import.csv";
+const DEFAULT_START_URL = `${BASE_URL}/us/en/foods/b/calories-in-krispy-kreme-doughnuts/vyTSeoxeRwat24Z_KrBT8w?classification=Donuts`;
+const DEFAULT_OUTPUT = "outputs/calorieking-example/Krispy-donuts-products-products.json";
+const DEFAULT_CSV_OUTPUT = "outputs/calorieking-example/Krispy-donuts-products.import.csv";
 const MAX_RESPONSE_BYTES = 10 * 1024 * 1024;
 
 function printHelp() {

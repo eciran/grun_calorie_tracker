@@ -470,7 +470,8 @@ public class FoodLogsServiceImpl implements FoodLogsService {
                     }
                     Double value = nutrient.apply(log.getFoodItem());
                     Double amount = resolveReferenceAmount(log, log.getFoodItem());
-                    double divisor = log.getFoodItem().getNutritionReferenceUnit()
+                    double divisor = com.grun.calorietracker.service.support.FoodEffectiveMeasurementContract
+                            .referenceUnit(log.getFoodItem())
                             == com.grun.calorietracker.enums.FoodNutritionReferenceUnit.PER_SERVING ? 1.0 : 100.0;
                     return (value == null ? 0.0 : value) * (amount == null ? 0.0 : amount) / divisor;
                 })
@@ -927,7 +928,7 @@ public class FoodLogsServiceImpl implements FoodLogsService {
     }
 
     private void applyNutritionSnapshot(FoodLogsEntity entity, FoodItemEntity foodItem, Double referenceAmount) {
-        boolean perServing = foodItem.getNutritionReferenceUnit()
+        boolean perServing = com.grun.calorietracker.service.support.FoodEffectiveMeasurementContract.referenceUnit(foodItem)
                 == com.grun.calorietracker.enums.FoodNutritionReferenceUnit.PER_SERVING;
         double divisor = perServing ? 1.0 : 100.0;
         entity.setSnapshotCalories(calculateNutritionValue(foodItem.getCalories(), referenceAmount, divisor));
@@ -961,12 +962,12 @@ public class FoodLogsServiceImpl implements FoodLogsService {
         if (entity.getNormalizedNutritionReferenceAmount() != null) {
             return entity.getNormalizedNutritionReferenceAmount();
         }
-        if (foodItem == null || foodItem.getNutritionReferenceUnit() == null) {
+        if (foodItem == null) {
             return entity.getNormalizedPortionGrams() != null
                     ? entity.getNormalizedPortionGrams()
                     : entity.getPortionSize();
         }
-        return switch (foodItem.getNutritionReferenceUnit()) {
+        return switch (com.grun.calorietracker.service.support.FoodEffectiveMeasurementContract.referenceUnit(foodItem)) {
             case PER_100ML -> entity.getNormalizedPortionMilliliters();
             case PER_100G -> entity.getNormalizedPortionGrams() != null
                     ? entity.getNormalizedPortionGrams()

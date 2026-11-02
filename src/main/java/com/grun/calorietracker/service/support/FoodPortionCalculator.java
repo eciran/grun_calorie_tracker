@@ -65,9 +65,7 @@ public final class FoodPortionCalculator {
             return new NormalizedFoodPortion(null, null, null);
         }
         requirePositive(portionSize, "Portion size");
-        FoodNutritionReferenceUnit referenceUnit = foodItem != null && foodItem.getNutritionReferenceUnit() != null
-                ? foodItem.getNutritionReferenceUnit()
-                : FoodNutritionReferenceUnit.PER_100G;
+        FoodNutritionReferenceUnit referenceUnit = FoodEffectiveMeasurementContract.referenceUnit(foodItem);
         if (referenceUnit == FoodNutritionReferenceUnit.PER_SERVING) {
             return normalizePerServing(portionSize, portionUnit, servingOption);
         }

@@ -118,6 +118,12 @@ public class FoodProductReviewRequestDto {
     @Schema(description = "Display unit for the serving size.", example = "g")
     private String servingUnit;
 
+    @Schema(description = "Explicitly clears the stored serving-size value. Null and false preserve the current value.")
+    private Boolean clearServingSize;
+
+    @Schema(description = "Explicitly clears the stored serving-unit value. Null and false preserve the current value.")
+    private Boolean clearServingUnit;
+
     @Schema(description = "Admin review note. Required when rejecting product data or image.", example = "Image is blurry and product label is unreadable.")
     private String reviewNote;
 
@@ -386,6 +392,22 @@ public class FoodProductReviewRequestDto {
 
     public void setServingUnit(String servingUnit) {
         this.servingUnit = servingUnit;
+    }
+
+    public Boolean getClearServingSize() {
+        return clearServingSize;
+    }
+
+    public void setClearServingSize(Boolean clearServingSize) {
+        this.clearServingSize = clearServingSize;
+    }
+
+    public Boolean getClearServingUnit() {
+        return clearServingUnit;
+    }
+
+    public void setClearServingUnit(Boolean clearServingUnit) {
+        this.clearServingUnit = clearServingUnit;
     }
 
     public String getReviewNote() {

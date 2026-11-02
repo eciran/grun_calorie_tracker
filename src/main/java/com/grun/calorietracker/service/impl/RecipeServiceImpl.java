@@ -771,7 +771,8 @@ public class RecipeServiceImpl implements RecipeService {
     private double factor(RecipeIngredientEntity ingredient) {
         FoodItemEntity foodItem = ingredient.getFoodItem();
         boolean per100Milliliters = foodItem != null
-                && foodItem.getNutritionReferenceUnit() == FoodNutritionReferenceUnit.PER_100ML;
+                && com.grun.calorietracker.service.support.FoodEffectiveMeasurementContract.referenceUnit(foodItem)
+                == FoodNutritionReferenceUnit.PER_100ML;
         Double referenceAmount = per100Milliliters
                 ? ingredient.getNormalizedPortionMilliliters()
                 : ingredient.getNormalizedPortionGrams();

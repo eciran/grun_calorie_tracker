@@ -49,6 +49,12 @@ public class FoodProductFamilyEntity {
     @Column(nullable = false, length = 255)
     private String appliedBy;
 
+    @Column(length = 64)
+    private String previewFingerprint;
+
+    @Column(length = 4000)
+    private String acknowledgedWarnings;
+
     @Column(nullable = false)
     private LocalDateTime appliedAt;
 

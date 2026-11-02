@@ -2,6 +2,7 @@ package com.grun.calorietracker.service.impl;
 
 import com.grun.calorietracker.dto.FoodProductDto;
 import com.grun.calorietracker.dto.FoodProductPackageVariantDto;
+import com.grun.calorietracker.dto.FoodConsumptionOptionDto;
 import com.grun.calorietracker.dto.FoodProductSearchPageDto;
 import com.grun.calorietracker.dto.FoodSearchCriteriaDto;
 import com.grun.calorietracker.entity.FoodCanonicalResolutionEntity;
@@ -21,6 +22,7 @@ import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.FoodProductQualityIssue;
 import com.grun.calorietracker.enums.FoodEvidenceBasis;
 import com.grun.calorietracker.enums.FoodNutritionReferenceUnit;
+import com.grun.calorietracker.enums.FoodPortionUnit;
 import com.grun.calorietracker.enums.FoodPreparationState;
 import com.grun.calorietracker.enums.ImageSource;
 import com.grun.calorietracker.enums.ImageStatus;
@@ -1413,7 +1415,8 @@ public class FoodItemServiceImpl implements FoodItemService {
         mappedContent.forEach(product -> applyProductFamily(
                 product,
                 familiesByProductId.get(product.getId()),
-                true
+                true,
+                language
         ));
         dto.setContent(mappedContent);
         dto.setPage(products.getNumber());
@@ -1579,7 +1582,7 @@ Map<Long, Map<PreferredLanguage, FoodItemServingOptionLocalizationEntity>> servi
                         language
                 );
         FoodProductDto dto = toProductDto(product, language, servingOptions, localization, servingLocalizations);
-        applyProductFamily(dto, loadProductFamilies(List.of(product.getId())).get(product.getId()), false);
+        applyProductFamily(dto, loadProductFamilies(List.of(product.getId())).get(product.getId()), false, resolvedLanguage);
         return dto;
     }
 
@@ -1602,7 +1605,12 @@ Map<Long, Map<PreferredLanguage, FoodItemServingOptionLocalizationEntity>> servi
         return result;
     }
 
-    private void applyProductFamily(FoodProductDto dto, ProductFamilyView view, boolean searchPresentation) {
+    private void applyProductFamily(
+            FoodProductDto dto,
+            ProductFamilyView view,
+            boolean searchPresentation,
+            PreferredLanguage language
+    ) {
         if (dto == null || view == null) {
             return;
         }
@@ -1638,6 +1646,123 @@ Map<Long, Map<PreferredLanguage, FoodItemServingOptionLocalizationEntity>> servi
                     variant.getFat()
             );
         }).toList());
+        rebuildConsumptionOptions(dto, view, familyServingOptions(dto, view, language));
+    }
+
+    private List<com.grun.calorietracker.dto.FoodServingOptionDto> familyServingOptions(
+            FoodProductDto dto,
+            ProductFamilyView view,
+            PreferredLanguage language
+    ) {
+        FoodItemEntity representative = view.family().getRepresentativeFoodItem();
+        if (Objects.equals(representative.getId(), dto.getId())) {
+            return dto.getServingOptions() == null ? List.of() : dto.getServingOptions();
+        }
+        List<FoodItemServingOptionEntity> options = foodItemServingOptionRepository
+                .findByFoodItemAndQualityStatusOrderByIsDefaultDescLabelAsc(
+                        representative,
+                        com.grun.calorietracker.enums.FoodServingOptionQualityStatus.VERIFIED
+                ).stream()
+                .filter(option -> !Boolean.FALSE.equals(option.getUserVisible()))
+                .filter(option -> com.grun.calorietracker.service.support.FoodPortionUnitResolver
+                        .supportsOption(representative, option))
+                .toList();
+        Map<Long, Map<PreferredLanguage, FoodItemServingOptionLocalizationEntity>> localizations =
+                loadServingOptionLocalizations(
+                        options.stream().map(FoodItemServingOptionEntity::getId).toList(),
+                        language
+                );
+        return options.stream().map(option -> {
+            var servingDto = FoodServingOptionMapper.toDto(option);
+            var localization = resolveServingLocalization(localizations.get(option.getId()), language);
+            if (localization != null) servingDto.setLabel(localization.getLabel());
+            return servingDto;
+        }).toList();
+    }
+
+    private void rebuildConsumptionOptions(
+            FoodProductDto dto,
+            ProductFamilyView familyView,
+            List<com.grun.calorietracker.dto.FoodServingOptionDto> servingOptions
+    ) {
+        List<FoodConsumptionOptionDto> options = new ArrayList<>();
+        if (servingOptions != null) {
+            servingOptions.forEach(option -> options.add(new FoodConsumptionOptionDto(
+                    "SERVING_OPTION:" + option.getId(),
+                    option.getLabel(),
+                    com.grun.calorietracker.enums.FoodConsumptionOptionType.SERVING_OPTION,
+                    option.getUnitType(),
+                    1.0,
+                    FoodPortionUnit.SERVING,
+                    option.getGramWeight(),
+                    option.getMlVolume(),
+                    option.getId(),
+                    option.getFoodItemId(),
+                    null,
+                    Boolean.TRUE.equals(option.getDefaultOption()),
+                    false
+            )));
+        }
+        if (familyView != null) {
+            FoodItemEntity representative = familyView.family().getRepresentativeFoodItem();
+            var bridge = servingOptions == null ? null : servingOptions.stream()
+                    .filter(option -> positive(option.getGramWeight()) && positive(option.getMlVolume()))
+                    .findFirst().orElse(null);
+            familyView.members().forEach(member -> {
+                FoodItemEntity product = member.getFoodItem();
+                FoodPortionUnit portionUnit = member.getPackageUnit();
+                double amount = member.getPackageQuantity().doubleValue();
+                boolean bridgeRequired = requiresMassVolumeBridge(
+                        com.grun.calorietracker.service.support.FoodEffectiveMeasurementContract
+                                .referenceUnit(representative),
+                        portionUnit
+                );
+                if (bridgeRequired && bridge == null) {
+                    return;
+                }
+                Double gramWeight = portionUnit == FoodPortionUnit.GRAM ? amount : null;
+                Double mlVolume = portionUnit == FoodPortionUnit.MILLILITER ? amount : null;
+                if (bridgeRequired) {
+                    if (portionUnit == FoodPortionUnit.MILLILITER) {
+                        gramWeight = amount * bridge.getGramWeight() / bridge.getMlVolume();
+                    } else {
+                        mlVolume = amount * bridge.getMlVolume() / bridge.getGramWeight();
+                    }
+                }
+                options.add(new FoodConsumptionOptionDto(
+                        "PACKAGE_VARIANT:" + member.getId(),
+                        member.getPackageLabel(),
+                        com.grun.calorietracker.enums.FoodConsumptionOptionType.PACKAGE_VARIANT,
+                        com.grun.calorietracker.enums.FoodServingOptionUnit.PACKAGE,
+                        amount,
+                        portionUnit,
+                        gramWeight,
+                        mlVolume,
+                        bridgeRequired ? bridge.getId() : null,
+                        product.getId(),
+                        product.getBarcode(),
+                        member.isDefaultVariant(),
+                        Objects.equals(product.getId(), dto.getId())
+                ));
+            });
+        }
+        dto.setConsumptionOptions(List.copyOf(options));
+    }
+
+    private boolean requiresMassVolumeBridge(
+            FoodNutritionReferenceUnit referenceUnit,
+            FoodPortionUnit portionUnit
+    ) {
+        FoodNutritionReferenceUnit resolvedReference = referenceUnit == null
+                ? FoodNutritionReferenceUnit.PER_100G : referenceUnit;
+        return (resolvedReference == FoodNutritionReferenceUnit.PER_100G
+                && portionUnit == FoodPortionUnit.MILLILITER)
+                || (resolvedReference == FoodNutritionReferenceUnit.PER_100ML
+                && portionUnit == FoodPortionUnit.GRAM);
+    }
+
+    private boolean positive(Double value) {
+        return value != null && Double.isFinite(value) && value > 0;
     }
 
     private record ProductFamilyView(
@@ -1669,6 +1794,7 @@ dto.setServingOptions(compatibleOptions.stream().map(option -> {
             }
             return servingDto;
         }).toList());
+        rebuildConsumptionOptions(dto, null, dto.getServingOptions());
         compatibleOptions.stream()
                 .filter(option -> Boolean.TRUE.equals(option.getIsDefault()))
                 .findFirst()

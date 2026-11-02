@@ -19,6 +19,7 @@ export type SectionKey =
   | "catalogExercises"
   | "products"
   | "catalogSearch"
+  | "productFamilies"
   | "productContributions"
   | "productDuplicates"
   | "productImages"
@@ -86,6 +87,7 @@ export const sections: SectionMeta[] = [
   { key: "catalogExercises", label: "Exercise Library", hint: "Technique and media", icon: "E" },
   { key: "products", label: "Product Review", hint: "Catalog quality", icon: "P" },
   { key: "catalogSearch", label: "Find Product", hint: "Full database and barcode search", icon: "F" },
+  { key: "productFamilies", label: "Product Families", hint: "Package variants and rollback", icon: "F" },
   { key: "productContributions", label: "Evidence & Duplicates", hint: "Contributions and identity decisions", icon: "L" },
   { key: "productDuplicates", label: "Canonical Duplicates", hint: "Generic identity decisions", icon: "D" },
   { key: "productImages", label: "Product Quality", hint: "Images, nutrition and rejected", icon: "Q" },
@@ -185,7 +187,7 @@ export const navigation: NavigationItem[] = [
   navSection("errors"),
   navSection("notifications"),
     navSection("users"),
-  { ...navSection("foodOps"), children: [navSection("foodOps"), navSection("catalogSearch"), navSection("products"), navSection("productContributions"), navSection("productImages"), navSection("recipes"), navSection("catalogExercises"), navSection("foodQuality")] },
+  { ...navSection("foodOps"), children: [navSection("foodOps"), navSection("catalogSearch"), navSection("products"), navSection("productFamilies"), navSection("productContributions"), navSection("productImages"), navSection("recipes"), navSection("catalogExercises"), navSection("foodQuality")] },
   { ...navSection("subscriptions"), children: [navSection("subscriptions"), navSection("subscriptionFeatures"), navSection("subscriptionMapping"), navSection("subscriptionAccess"), navSection("subscriptionAiQuotas"), navSection("subscriptionEvents"), navSection("promotions"), navSection("freePromotion"), navSection("revenueCatProduction"), navSection("revenueCatSandbox")] },
   { ...navSection("notificationDefinitions"), children: [navSection("notificationDefinitions"), navSection("mealReminderAutomation"), navSection("notificationCampaigns"), navSection("subscriptionNotifications"), navSection("mailInbox"), navSection("mail"), navSection("pushDelivery"), navSection("achievements")] },
   { ...navSection("ai"), children: [navSection("ai"), navSection("aiRequests"), navSection("aiPolicy")] },
@@ -196,7 +198,7 @@ export const navigation: NavigationItem[] = [
 
 export const sectionTabGroups: SectionMeta[][] = [
   [navSection("foodOps"), navSection("foodQuality")],
-  [navSection("catalogSearch"), navSection("products"), navSection("productContributions"), navSection("productImages")],
+  [navSection("catalogSearch"), navSection("products"), navSection("productFamilies"), navSection("productContributions"), navSection("productImages")],
   [navSection("subscriptions"), navSection("subscriptionFeatures"), navSection("subscriptionMapping"), navSection("subscriptionAccess"), navSection("subscriptionAiQuotas")],
   [navSection("promotions"), navSection("freePromotion")],
   [navSection("revenueCatProduction"), navSection("revenueCatSandbox")],
@@ -216,7 +218,7 @@ export function permissionForSection(section: SectionKey): string {
   if (section === "errors") return "TECHNICAL_READ";
   if (section === "admins" || section === "approvals") return "ADMIN_TEAM_READ";
   if (section === "users") return "USERS_READ";
-  if (["foodOps", "foodImports", "foodRegions", "foodQuality", "catalogExercises", "catalogSearch", "products", "productContributions", "productDuplicates", "productImages", "productNutrition", "productRejected", "recipes", "achievements"].includes(section)) return "CATALOG_READ";
+  if (["foodOps", "foodImports", "foodRegions", "foodQuality", "catalogExercises", "catalogSearch", "products", "productFamilies", "productContributions", "productDuplicates", "productImages", "productNutrition", "productRejected", "recipes", "achievements"].includes(section)) return "CATALOG_READ";
   if (["subscriptions", "subscriptionFeatures", "subscriptionMapping", "subscriptionEntitlements", "subscriptionAccess", "subscriptionAiQuotas", "subscriptionEvents", "subscriptionNotifications", "promotions", "revenueCatProduction", "revenueCatSandbox"].includes(section)) return "FINANCE_READ";
   if (section === "notifications") return "DASHBOARD_READ";
   if (["notificationDefinitions", "mealReminderAutomation", "notificationCampaigns"].includes(section)) return "NOTIFICATIONS_READ";

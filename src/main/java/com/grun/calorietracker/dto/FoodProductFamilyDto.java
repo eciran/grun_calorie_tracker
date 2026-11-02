@@ -14,6 +14,11 @@ public record FoodProductFamilyDto(
         String evidenceReason,
         String appliedBy,
         LocalDateTime appliedAt,
+        String previewFingerprint,
+        List<String> acknowledgedWarnings,
+        String revertedBy,
+        LocalDateTime revertedAt,
+        String revertReason,
         List<Member> members
 ) {
     public record Member(

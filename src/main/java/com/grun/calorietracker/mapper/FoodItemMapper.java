@@ -136,9 +136,9 @@ public class FoodItemMapper {
         dto.setMarketRegions(marketRegions);
         dto.setPreparationState(entity.getPreparationState());
         dto.setNutritionBasis(entity.getNutritionBasis());
-        dto.setNutritionReferenceUnit(entity.getNutritionReferenceUnit() != null
-                ? entity.getNutritionReferenceUnit()
-                : com.grun.calorietracker.enums.FoodNutritionReferenceUnit.PER_100G);
+        dto.setNutritionReferenceUnit(
+                com.grun.calorietracker.service.support.FoodEffectiveMeasurementContract.referenceUnit(entity)
+        );
         dto.setSourceCategoryTags(entity.getSourceCategoryTags() == null
                 ? Set.of()
                 : new HashSet<>(entity.getSourceCategoryTags()));

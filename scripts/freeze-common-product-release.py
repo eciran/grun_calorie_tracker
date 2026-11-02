@@ -15,10 +15,17 @@ EXCLUDED={'repository/UserRepository.java','repository/UserDailyActivityReposito
           'service/impl/UserServiceImpl.java','service/impl/RecipeServiceImpl.java'}
 PREFIXES=('dto/Food','entity/Food','enums/Food','mapper/Food','repository/Food','repository/ProductQuality',
           'service/BrandedProduct','service/ProductQuality','service/impl/AdminFood','service/impl/CatalogPublication',
-          'service/impl/Food','service/impl/OpenFoodFacts','service/impl/ProductQuality','service/support/BrandedDuplicate',
+          'service/FoodProductFamily','service/impl/Food','service/impl/OpenFoodFacts','service/impl/ProductQuality','service/support/BrandedDuplicate',
           'service/support/Food','service/support/Usda','config/ProductCatalogAudit','controller/AdminProductCatalogAudit',
+          'controller/AdminFoodProductFamily','controller/AdminBrandedProductDuplicate',
           'dto/ProductCatalogAudit','entity/ProductCatalogAudit','repository/ProductCatalogAudit',
           'service/impl/ProductCatalogAudit','service/support/ProductCatalogAudit')
+REQUIRED_PRODUCT_SUPPORT={
+    'exception/CatalogWriteInProgressException.java',
+    'exception/GlobalExceptionHandler.java',
+    'service/support/ExternalFoodImportFence.java',
+    'service/support/NutritionValueNormalizer.java',
+}
 
 
 def sha(path): return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -66,7 +73,7 @@ def run(args):
     destination=args.output.resolve()
     if not destination.is_relative_to(ROOT/'outputs') or destination.exists(): raise ValueError('New workspace output required')
     base=subprocess.run(['git','rev-parse','HEAD'],cwd=ROOT,capture_output=True,text=True,check=True).stdout.strip()
-    archive=subprocess.run(['git','archive','--format=zip',base,'pom.xml','src'],cwd=ROOT,capture_output=True,check=True).stdout
+    archive=subprocess.run(['git','archive','--format=zip',base,'Dockerfile','pom.xml','src'],cwd=ROOT,capture_output=True,check=True).stdout
     destination.mkdir(parents=True)
     with zipfile.ZipFile(io.BytesIO(archive)) as zipped:
         for entry in zipped.infolist():
@@ -82,12 +89,17 @@ def run(args):
     for file in paths:
         if file.startswith(JAVA):
             relative=file[len(JAVA):]
-            if relative in EXCLUDED or not relative.startswith(PREFIXES): excluded.append(file); continue
+            if relative in EXCLUDED or (relative not in REQUIRED_PRODUCT_SUPPORT and not relative.startswith(PREFIXES)):
+                excluded.append(file); continue
         elif file.startswith('src/test/java/'):
             if any(word in file for word in ('AdminUser','OwnerError','RecipeService')): excluded.append(file); continue
         elif file.startswith('src/main/resources/catalog/') or file in (
             'src/main/resources/db/migration/V306__add_resumable_product_catalog_audit.sql',
             'src/main/resources/db/migration/V307__add_reviewed_food_concept_identity.sql',
+            'src/main/resources/db/migration/V315__add_product_package_families.sql',
+            'src/main/resources/db/migration/V316__allow_reversible_product_family_memberships.sql',
+            'src/main/resources/db/migration/V317__allow_reapplying_reverted_product_families.sql',
+            'src/main/resources/db/migration/V318__persist_food_item_package_metadata.sql',
             'src/main/resources/application-prod.yml','src/main/resources/application-example.yml',
             'src/test/resources/generic-food-approved-seed-v1.csv'):
             pass
@@ -100,19 +112,22 @@ def run(args):
         selected.append({'file':file,'sha256':sha(source)})
     # Deliberately use the checked-in safe example, never the local secret config.
     shutil.copyfile(destination/'src/main/resources/application-example.yml',destination/'src/main/resources/application.yml')
-    required=json.loads((ROOT/'outputs/r5-common-readiness-20261013/common-release/common-plan.json').read_text(encoding='utf-8'))['inputHashes']['runtime']
-    for file,value in required.items():
-        if sha(ROOT/file)!=value: raise ValueError('Approved live source changed: '+file)
-        target=destination/file
-        if not target.is_file() or sha(target)!=value:
-            target.parent.mkdir(parents=True,exist_ok=True)
-            shutil.copyfile(ROOT/file,target)
-            if file not in {row['file'] for row in selected}: selected.append({'file':file,'sha256':value})
-    if any(not (destination/file).is_file() or sha(destination/file)!=value for file,value in required.items()):
-        raise ValueError('Approved common runtime hashes missing from isolated release')
+    required={}
+    if not args.current_head_baseline:
+        required=json.loads((ROOT/'outputs/r5-common-readiness-20261013/common-release/common-plan.json').read_text(encoding='utf-8'))['inputHashes']['runtime']
+        for file,value in required.items():
+            if sha(ROOT/file)!=value: raise ValueError('Approved live source changed: '+file)
+            target=destination/file
+            if not target.is_file() or sha(target)!=value:
+                target.parent.mkdir(parents=True,exist_ok=True)
+                shutil.copyfile(ROOT/file,target)
+                if file not in {row['file'] for row in selected}: selected.append({'file':file,'sha256':value})
+        if any(not (destination/file).is_file() or sha(destination/file)!=value for file,value in required.items()):
+            raise ValueError('Approved common runtime hashes missing from isolated release')
     manifest={'version':'COMMON_PRODUCT_RELEASE_SOURCE_V1','baseGitRevision':base,'selected':selected,'excluded':excluded,
               'resources':{p.relative_to(destination).as_posix():sha(p) for p in (destination/'src/main/resources').rglob('*') if p.is_file()},
               'gitMutations':0,'unrelatedAdminSecurityAnalyticsEditsExcluded':True,'localEnvCopied':False}
+    manifest['baselinePolicy']='CURRENT_HEAD_PLUS_SELECTED_PRODUCT_CHANGES' if args.current_head_baseline else 'LEGACY_COMMON_PIN'
     (destination.parent/'source-manifest.json').write_text(json.dumps(manifest,indent=2)+'\n',encoding='utf-8')
     print(json.dumps({'baseGitRevision':base,'productFilesSelected':len(selected),'openPathsExcluded':len(excluded),'output':str(destination),'localEnvCopied':False}))
 
@@ -122,5 +137,6 @@ if __name__=='__main__':
     parser.add_argument('--output',type=Path,required=True)
     parser.add_argument('--refresh-fixtures',action='store_true')
     parser.add_argument('--seal',action='store_true')
+    parser.add_argument('--current-head-baseline',action='store_true')
     args=parser.parse_args()
     seal(args) if args.seal else refresh_fixtures(args) if args.refresh_fixtures else run(args)

@@ -76,6 +76,19 @@ class FoodPortionUnitResolverTest {
     }
 
     @Test
+    void strongLiquidEvidenceAdvertisesOnlyTheCalculableMlUnit() {
+        FoodItemEntity food = new FoodItemEntity();
+        food.setNutritionReferenceUnit(FoodNutritionReferenceUnit.PER_100G);
+        food.setServingUnit("g");
+        food.setSourceCategoryTags(java.util.Set.of("en:dairy-drinks"));
+
+        assertEquals(List.of(FoodPortionUnit.MILLILITER), FoodPortionUnitResolver.allowedUnits(food));
+        assertEquals(200.0, FoodPortionCalculator.normalize(
+                200.0, FoodPortionUnit.MILLILITER, food, null
+        ).nutritionReferenceAmount());
+    }
+
+    @Test
     void milliliterReferenceDoesNotAdvertiseGramBasedServing() {
         FoodItemEntity food = new FoodItemEntity();
         food.setServingUnit("GRAM");

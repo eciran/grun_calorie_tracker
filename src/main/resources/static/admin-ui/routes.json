@@ -10,6 +10,7 @@
   "catalogExercises": "/admin/catalog/exercises",
   "products": "/admin/products",
   "catalogSearch": "/admin/catalog/search",
+  "productFamilies": "/admin/products/families",
   "productContributions": "/admin/products/contributions",
   "productDuplicates": "/admin/products/duplicates",
   "productImages": "/admin/products/images",

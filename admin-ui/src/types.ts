@@ -225,6 +225,44 @@ export type FoodProduct = {
   nutriScore?: string;
   custom?: boolean;
 };
+
+export type FoodProductFamilyMember = {
+  productId: number;
+  barcode?: string;
+  displayName?: string;
+  packageQuantity: number;
+  packageUnit: "GRAM" | "MILLILITER";
+  packageLabel: string;
+  defaultVariant: boolean;
+  active: boolean;
+};
+
+export type FoodProductFamily = {
+  id: number;
+  familyKey: string;
+  displayName: string;
+  representativeProductId: number;
+  active: boolean;
+  evidenceReason: string;
+  appliedBy: string;
+  appliedAt: string;
+  previewFingerprint?: string;
+  acknowledgedWarnings?: string[];
+  revertedBy?: string;
+  revertedAt?: string;
+  revertReason?: string;
+  members: FoodProductFamilyMember[];
+};
+
+export type FoodProductFamilyPreview = {
+  eligible: boolean;
+  familyKey: string;
+  representativeProductId: number;
+  memberProductIds: number[];
+  errors: string[];
+  warnings: string[];
+  previewFingerprint: string;
+};
 export type FoodCanonicalCandidateAssessment = {
   product?: FoodProduct;
   primaryEligible?: boolean;

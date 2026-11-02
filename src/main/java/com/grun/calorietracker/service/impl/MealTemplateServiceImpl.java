@@ -419,7 +419,8 @@ public class MealTemplateServiceImpl implements MealTemplateService {
 
     private void applyNutritionSnapshot(FoodLogsEntity entity, FoodItemEntity foodItem, Double amount) {
         amount = amount == null ? resolveReferenceAmount(entity, foodItem) : amount;
-        boolean perServing = foodItem.getNutritionReferenceUnit()
+        boolean perServing = com.grun.calorietracker.service.support.FoodEffectiveMeasurementContract
+                .referenceUnit(foodItem)
                 == com.grun.calorietracker.enums.FoodNutritionReferenceUnit.PER_SERVING;
         double divisor = perServing ? 1.0 : 100.0;
         entity.setSnapshotCalories(calculateNutritionValue(foodItem.getCalories(), amount, divisor));
@@ -447,10 +448,10 @@ public class MealTemplateServiceImpl implements MealTemplateService {
         if (entity.getNormalizedNutritionReferenceAmount() != null) {
             return entity.getNormalizedNutritionReferenceAmount();
         }
-        if (foodItem == null || foodItem.getNutritionReferenceUnit() == null) {
+        if (foodItem == null) {
             return entity.getNormalizedPortionGrams();
         }
-        return switch (foodItem.getNutritionReferenceUnit()) {
+        return switch (com.grun.calorietracker.service.support.FoodEffectiveMeasurementContract.referenceUnit(foodItem)) {
             case PER_100ML -> entity.getNormalizedPortionMilliliters();
             case PER_100G -> entity.getNormalizedPortionGrams();
             case PER_SERVING -> null;

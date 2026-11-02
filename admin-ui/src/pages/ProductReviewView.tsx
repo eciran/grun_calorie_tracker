@@ -255,7 +255,7 @@ const productReviewMessages = {
     resetFilters: "Filtreleri sıfırla", returnedProducts: "Eşleşen ürün", returnedProductsHint: "Geçerli filtre sonucundaki toplam", highPriority: "Yüksek öncelik", highPriorityHint: "Öncelik puanı 100 ve üzeri", missingImages: "Görseli eksik", missingImagesHint: "Kullanılabilir görseli olmayan satırlar", activeFilters: "Etkin filtre", activeFiltersHint: "Kuyruğa uygulanan ölçütler",
     filtersTitle: "Kuyruğu daralt", filtersDescription: "İncelenecek ürünleri görev, kaynak ve kalite sorununa göre odaklayın.", productSearch: "Ürün ara", productSearchPlaceholder: "Ad, marka veya barkod", verification: "Doğrulama", publication: "Yayın durumu", imageStatus: "Görsel durumu", region: "Bölge", catalog: "Katalog", dataSource: "Veri kaynağı", qualityIssue: "Kalite sorunu", all: "Tümü", anyIssue: "Tüm sorunlar",
     categoryQueue: "Kategori kararları", categoryQueueHint: "Birincil kategorisi bulunmayan ürünler", openQueue: "Kuyruğu aç",
-    bulkTools: "CSV işlemleri", bulkWorkflow: "Mevcut ürün düzeltme akışı", bulkDescription: "Bu bölüm yalnızca katalogda bulunan ürünleri günceller. Dışa aktarılan dosyadaki display_name alanları ile ana görünen adı, display_name_en ve display_name_tr alanları ile uygulamadaki İngilizce ve Türkçe adları topluca güncelleyebilirsiniz. Başarıyla aktarılan satırlar doğrulanır.", catalogImport: "Yeni ürün kataloğu içe aktar", catalogImportDescription: "GRUN_STANDARD CSV dosyasını önce geri alınabilir prova ile doğrulayın. Başarıyla uygulanan kayıtlar VERIFIED olarak kaydedilir ve doğrudan yayınlanabilir.", catalogFile: "Yeni katalog dosyası", previewRequired: "Gerçek içe aktarmadan önce hatasız prova zorunludur.", exportFilter: "Filtreyi dışa aktar", correctionFile: "Mevcut ürün düzeltme dosyası", chooseFile: "Dosya seç", noFile: "Henüz dosya seçilmedi", markVerified: "Başarıyla aktarılan satırlar otomatik doğrulanır", dryRun: "Prova çalıştır", applyImport: "İçe aktarmayı uygula", importMode: "İşlem", totalRows: "Toplam satır", matchedRows: "Eşleşen satır", updatedRows: "Güncellenen satır", skippedRows: "Atlanan satır",
+    bulkTools: "CSV işlemleri", bulkWorkflow: "Mevcut ürün düzeltme akışı", bulkDescription: "Bu bölüm yalnızca katalogda bulunan ürünleri günceller. Dışa aktarılan dosyada görünen adlarla birlikte nutrition_reference_unit ve serving_options_json alanları da korunur. PER_SERVING ürünlerde varsayılan SERVING, PORTION veya PIECE seçeneği gram/ml karşılığı olmadan geçerlidir. Başarıyla aktarılan satırlar doğrulanır.", catalogImport: "Yeni ürün kataloğu içe aktar", catalogImportDescription: "GRUN_STANDARD CSV dosyasını önce geri alınabilir prova ile doğrulayın. PER_SERVING ürünlerde hazır porsiyon seçeneği gram/ml karşılığı olmadan aktarılabilir. Başarıyla uygulanan kayıtlar VERIFIED olarak kaydedilir ve doğrudan yayınlanabilir.", catalogFile: "Yeni katalog dosyası", previewRequired: "Gerçek içe aktarmadan önce hatasız prova zorunludur.", exportFilter: "Filtreyi dışa aktar", correctionFile: "Mevcut ürün düzeltme dosyası", chooseFile: "Dosya seç", noFile: "Henüz dosya seçilmedi", markVerified: "Başarıyla aktarılan satırlar otomatik doğrulanır", dryRun: "Prova çalıştır", applyImport: "İçe aktarmayı uygula", importMode: "İşlem", totalRows: "Toplam satır", matchedRows: "Eşleşen satır", updatedRows: "Güncellenen satır", skippedRows: "Atlanan satır",
     queueEyebrow: "ÇALIŞMA KUYRUĞU", queueTitle: "İncelenecek ürünler", queueDescription: "Bir satır seçerek kanıt, kalite önerileri ve düzenleme alanlarını açın.", product: "Ürün", source: "Kaynak", review: "İnceleme", publicationColumn: "Yayın", quality: "Kalite", nutrition: "Besin değerleri", empty: "Bu filtre için incelenecek ürün bulunamadı.", rejectTitle: "Ürün reddedilsin mi?", rejectMessage: "Ürün ve görsel reddedildi olarak işaretlenecek; karar denetim geçmişine kaydedilecek.", rejectAction: "Ürünü reddet"
   },
   en: {
@@ -264,7 +264,7 @@ const productReviewMessages = {
     resetFilters: "Reset filters", returnedProducts: "Matching products", returnedProductsHint: "Total in the current filter", highPriority: "High priority", highPriorityHint: "Priority score 100 or above", missingImages: "Missing images", missingImagesHint: "Rows without a usable image", activeFilters: "Active filters", activeFiltersHint: "Criteria applied to the queue",
     filtersTitle: "Refine the queue", filtersDescription: "Focus the workload by task, source, and quality issue.", productSearch: "Product search", productSearchPlaceholder: "Name, brand, or barcode", verification: "Verification", publication: "Publication", imageStatus: "Image status", region: "Region", catalog: "Catalog", dataSource: "Data source", qualityIssue: "Quality issue", all: "All", anyIssue: "Any issue",
     categoryQueue: "Category decisions", categoryQueueHint: "Products without a primary category", openQueue: "Open queue",
-    bulkTools: "CSV operations", bulkWorkflow: "Existing product correction workflow", bulkDescription: "This section only updates products already in the catalog. Use display_name for the base catalog label and display_name_en / display_name_tr for the English and Turkish names shown in the app. Successfully imported rows are verified automatically.", catalogImport: "Import new product catalog", catalogImportDescription: "Validate the GRUN_STANDARD CSV with a rollback-only dry run first. Successfully applied records are stored as VERIFIED and can be published directly.", catalogFile: "New catalog file", previewRequired: "A clean dry run is required before the real import.", exportFilter: "Export current filter", correctionFile: "Existing product correction file", chooseFile: "Choose file", noFile: "No file selected", markVerified: "Successfully imported rows are verified automatically", dryRun: "Run dry run", applyImport: "Apply import", importMode: "Operation", totalRows: "Total rows", matchedRows: "Matched rows", updatedRows: "Updated rows", skippedRows: "Skipped rows",
+    bulkTools: "CSV operations", bulkWorkflow: "Existing product correction workflow", bulkDescription: "This section only updates products already in the catalog. Exported files preserve display names together with nutrition_reference_unit and serving_options_json. For PER_SERVING products, a default SERVING, PORTION, or PIECE option is valid without a gram/ml conversion. Successfully imported rows are verified automatically.", catalogImport: "Import new product catalog", catalogImportDescription: "Validate the GRUN_STANDARD CSV with a rollback-only dry run first. PER_SERVING products may import a ready-portion option without a gram/ml conversion. Successfully applied records are stored as VERIFIED and can be published directly.", catalogFile: "New catalog file", previewRequired: "A clean dry run is required before the real import.", exportFilter: "Export current filter", correctionFile: "Existing product correction file", chooseFile: "Choose file", noFile: "No file selected", markVerified: "Successfully imported rows are verified automatically", dryRun: "Run dry run", applyImport: "Apply import", importMode: "Operation", totalRows: "Total rows", matchedRows: "Matched rows", updatedRows: "Updated rows", skippedRows: "Skipped rows",
     queueEyebrow: "WORK QUEUE", queueTitle: "Products to review", queueDescription: "Select a row to open evidence, quality recommendations, and editing fields.", product: "Product", source: "Source", review: "Review", publicationColumn: "Publication", quality: "Quality", nutrition: "Nutrition", empty: "No products need review for this filter.", rejectTitle: "Reject product?", rejectMessage: "The product and its image will be marked rejected and the decision will be recorded in audit history.", rejectAction: "Reject product"
   }
 } as const;
@@ -298,6 +298,9 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
   const [correctionResult, setCorrectionResult] = useState<NutritionCorrectionImportResult | null>(null);
   const [correctionNotice, setCorrectionNotice] = useState<CorrectionImportNotice | null>(null);
   const [transferState, setTransferState] = useState<LoadState>("idle");
+  const [correctionOperation, setCorrectionOperation] = useState<"preview" | "import" | null>(null);
+  const [correctionOperationStartedAt, setCorrectionOperationStartedAt] = useState<number | null>(null);
+  const [correctionElapsedSeconds, setCorrectionElapsedSeconds] = useState(0);
   const [catalogFile, setCatalogFile] = useState<File | null>(null);
   const [catalogImportMode, setCatalogImportMode] = useState<"CURATED_ADMIN" | "SOURCE_REFRESH">("CURATED_ADMIN");
   const [catalogResult, setCatalogResult] = useState<CatalogImportResult | null>(null);
@@ -318,6 +321,14 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
     const intervalId = window.setInterval(updateElapsed, 1000);
     return () => window.clearInterval(intervalId);
   }, [catalogOperationStartedAt]);
+
+  useEffect(() => {
+    if (correctionOperationStartedAt === null) return;
+    const updateElapsed = () => setCorrectionElapsedSeconds(Math.floor((Date.now() - correctionOperationStartedAt) / 1000));
+    updateElapsed();
+    const intervalId = window.setInterval(updateElapsed, 1000);
+    return () => window.clearInterval(intervalId);
+  }, [correctionOperationStartedAt]);
   const path = buildProductReviewPath({
     query,
     verificationStatus,
@@ -589,6 +600,9 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
       return;
     }
     setTransferState("loading");
+    setCorrectionOperation(dryRun ? "preview" : "import");
+    setCorrectionOperationStartedAt(Date.now());
+    setCorrectionElapsedSeconds(0);
     setCorrectionNotice(null);
     onError(null);
     try {
@@ -597,7 +611,7 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
       const result = await requestFormData<NutritionCorrectionImportResult>(
         `/api/v1/admin/products/nutrition-corrections/import?dryRun=${dryRun}&markVerified=true`,
         formData,
-        { timeoutMs: 120000 }
+        { timeoutMs: 900000 }
       );
       setCorrectionResult(result);
       setTransferState("ready");
@@ -630,6 +644,9 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
       setTransferState("error");
       setCorrectionNotice(null);
       onError(formatRequestError(err));
+    } finally {
+      setCorrectionOperation(null);
+      setCorrectionOperationStartedAt(null);
     }
   }
 
@@ -842,8 +859,16 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
               <span aria-hidden="true">✓</span>
               <span>{text.markVerified}</span>
             </div>
-            <div className="product-review-import-actions"><button className="ghost-button" type="button" disabled={transferState === "loading" || !correctionFile} onClick={() => importNutritionCorrections(true)}>{text.dryRun}</button><button className="primary-button" type="button" disabled={transferState === "loading" || !correctionFile} onClick={() => importNutritionCorrections(false)}>{text.applyImport}</button></div>
+            <div className="product-review-import-actions"><button className="ghost-button" type="button" disabled={transferState === "loading" || !correctionFile} onClick={() => importNutritionCorrections(true)}>{correctionOperation === "preview" ? (locale === "tr" ? "Prova çalışıyor…" : "Dry run in progress…") : text.dryRun}</button><button className="primary-button" type="button" disabled={transferState === "loading" || !correctionFile} onClick={() => importNutritionCorrections(false)}>{correctionOperation === "import" ? (locale === "tr" ? "İçe aktarılıyor…" : "Importing…") : text.applyImport}</button></div>
           </div>
+          {transferState === "loading" && correctionOperation && <div className="product-review-import-progress" role="status" aria-live="polite">
+            <span className="product-review-import-spinner" aria-hidden="true" />
+            <div>
+              <strong>{correctionOperation === "preview" ? (locale === "tr" ? "Ürün düzeltme provası devam ediyor" : "Product correction dry run in progress") : (locale === "tr" ? "Mevcut ürünler güncelleniyor" : "Existing products are being updated")}</strong>
+              <span>{correctionFile?.name} · {`${Math.floor(correctionElapsedSeconds / 60)}:${String(correctionElapsedSeconds % 60).padStart(2, "0")}`}</span>
+              <small>{locale === "tr" ? "Büyük dosyalar birkaç dakika sürebilir. Sonuç raporu gelene kadar bu sayfayı açık tutun." : "Large files can take several minutes. Keep this page open until the result report arrives."}</small>
+            </div>
+          </div>}
           {correctionNotice && <div className={`product-review-import-notice ${correctionNotice.tone}`} role="status" aria-live="polite"><strong>{correctionNotice.tone === "success" ? (locale === "tr" ? "İçe aktarma başarılı" : "Import successful") : correctionNotice.tone === "warning" ? (locale === "tr" ? "İşlem tamamlandı, kontrol gerekli" : "Completed with attention required") : (locale === "tr" ? "Prova sonucu" : "Dry-run result")}</strong><span>{correctionNotice.message}</span></div>}
           {correctionResult && <div className="correction-result-grid">
             <MetricPill label={text.importMode} value={correctionResult.dryRun ? (locale === "tr" ? "Prova" : "Dry-run") : (locale === "tr" ? "Uygulandı" : "Applied")} />
@@ -1121,7 +1146,7 @@ export function ProductReviewModal({
               <header><div><span>{locale === "tr" ? "Ölçüm ve kaynak" : "Measurement & source"}</span><strong>{locale === "tr" ? "Besin referansı ve katalog kaynağı" : "Nutrition reference and catalog provenance"}</strong></div><small>{locale === "tr" ? "Mobil uygulama bu ölçüye göre doğru porsiyon seçeneklerini gösterir." : "The mobile app uses this basis to present the correct portion options."}</small></header>
               <div className="product-review-editor-grid">
                 <label><span>{locale === "tr" ? "Besin verisinin türü" : "Nutrition provenance"}</span><select value={draft.nutritionBasis} onChange={(event) => updateDraft("nutritionBasis", event.target.value)}><option value="SOURCE_REPORTED">{locale === "tr" ? "Kaynakta bildirilen" : "Source reported"}</option><option value="CALCULATED">{locale === "tr" ? "Hesaplanan" : "Calculated"}</option><option value="ESTIMATED">{locale === "tr" ? "Tahmini" : "Estimated"}</option></select></label>
-                <label><span>{locale === "tr" ? "Referans ölçü" : "Reference unit"}</span><select value={draft.nutritionReferenceUnit} onChange={(event) => updateDraft("nutritionReferenceUnit", event.target.value)}><option value="PER_100G">100 g</option><option value="PER_100ML">100 ml</option><option value="PER_SERVING">{locale === "tr" ? "1 servis" : "1 serving"}</option></select></label>
+                <label><span>{locale === "tr" ? "Referans ölçü" : "Reference unit"}</span><select value={draft.nutritionReferenceUnit} onChange={(event) => setDraft(measurementDraftForReference(draft, event.target.value))}><option value="PER_100G">100 g</option><option value="PER_100ML">100 ml</option><option value="PER_SERVING">{locale === "tr" ? "1 servis" : "1 serving"}</option></select></label>
                 <label className="wide"><span>{locale === "tr" ? "Kaynak kategori etiketleri" : "Source category tags"}</span><input value={draft.sourceCategoryTags} onChange={(event) => updateDraft("sourceCategoryTags", event.target.value)} placeholder={locale === "tr" ? "Virgülle ayırın" : "Comma separated"} /></label>
                 <label><span>{locale === "tr" ? "Kaynak adı" : "Source name"}</span><input maxLength={160} value={draft.adminSourceName} onChange={(event) => updateDraft("adminSourceName", event.target.value)} /></label>
                 <label><span>{locale === "tr" ? "Kaynak bağlantısı" : "Source URL"}</span><input type="url" maxLength={1000} value={draft.adminSourceUrl} onChange={(event) => updateDraft("adminSourceUrl", event.target.value)} placeholder="https://..." /></label>
@@ -1169,11 +1194,10 @@ export function ProductReviewModal({
                   <label className="nutrition-input">
                     <span>{locale === "tr" ? "Porsiyon birimi" : "Serving unit"}</span>
                     <div className="nutrition-input-control single">
-                      <input
-                        value={draft.servingUnit}
-                        onChange={(event) => updateDraft("servingUnit", event.target.value)}
-                        placeholder="g, ml, piece"
-                      />
+                      <select value={draft.servingUnit} onChange={(event) => updateDraft("servingUnit", event.target.value)}>
+                        <option value="">{locale === "tr" ? "Belirtilmemiş" : "Not set"}</option>
+                        <option value={servingUnitForReference(draft.nutritionReferenceUnit)}>{servingUnitLabel(servingUnitForReference(draft.nutritionReferenceUnit), draft.nutritionReferenceUnit, locale)}</option>
+                      </select>
                     </div>
                   </label>
                 </div>
@@ -1266,7 +1290,9 @@ export function ProductQualityWorkbench({ product, onError }: { product: FoodPro
   }
 
   function openServingEditor(item?: NonNullable<AdminProductQualityWorkbench["servingOptions"]>[number]) {
-    const localized = (language: "EN" | "TR") => item?.localizations?.find((value) => value.language === language)?.label ?? "";
+    const localized = (language: "EN" | "TR") => item?.localizations?.find((value) => value.language === language)?.label?.trim() || item?.label || "";
+    const userVisible = item?.userVisible ?? true;
+    const defaultOption = item?.defaultOption ?? false;
     setServingEditor({
       id: item?.id,
       value: {
@@ -1275,8 +1301,8 @@ export function ProductQualityWorkbench({ product, onError }: { product: FoodPro
         quantity: item?.quantity ?? 1,
         gramWeight: item?.gramWeight,
         mlVolume: item?.mlVolume,
-        defaultOption: item?.defaultOption ?? false,
-        userVisible: item?.userVisible ?? true,
+        defaultOption,
+        userVisible,
         qualityStatus: item?.qualityStatus === "NEEDS_REVIEW" ? "NEEDS_REVIEW" : "VERIFIED",
         localizations: [
           { language: "EN", label: localized("EN") },
@@ -1290,9 +1316,12 @@ export function ProductQualityWorkbench({ product, onError }: { product: FoodPro
     if (!product.id || !servingEditor) return;
     setState("loading");
     try {
+      const value = (servingEditor.value.userVisible || servingEditor.value.defaultOption)
+        ? { ...servingEditor.value, qualityStatus: "VERIFIED" as const }
+        : servingEditor.value;
       await request(`/api/v1/admin/products/${product.id}/serving-options${servingEditor.id ? `/${servingEditor.id}` : ""}`, {
         method: servingEditor.id ? "PUT" : "POST",
-        body: servingEditor.value
+        body: value
       });
       setServingEditor(null);
       await loadWorkbench();
@@ -1376,12 +1405,26 @@ export function ServingOptionEditor({ editor, locale, busy, allowNativeServing, 
   const tr = locale === "tr";
   const update = (patch: Partial<AdminFoodServingOptionUpsert>) => onChange({ ...editor, value: { ...editor.value, ...patch } });
   const updateLocalization = (language: "EN" | "TR", label: string) => update({ localizations: editor.value.localizations.map((item) => item.language === language ? { ...item, label } : item) });
+  const updateInternalLabel = (label: string) => update({
+    label,
+    localizations: editor.value.localizations.map((item) =>
+      !item.label.trim() || item.label === editor.value.label ? { ...item, label } : item)
+  });
   const nativeServing = allowNativeServing && ["SERVING", "PORTION", "PIECE"].includes(editor.value.unitType);
-  const valid = editor.value.label.trim() && editor.value.quantity > 0 && (nativeServing || Number(editor.value.gramWeight) > 0 || Number(editor.value.mlVolume) > 0) && editor.value.localizations.every((item) => item.label.trim()) && (!editor.value.defaultOption || (editor.value.userVisible && editor.value.qualityStatus === "VERIFIED")) && (!editor.value.userVisible || editor.value.qualityStatus === "VERIFIED");
+  const validationIssues = [
+    !editor.value.label.trim() ? (tr ? "İç etiket zorunludur." : "Internal label is required.") : null,
+    !(editor.value.quantity > 0) ? (tr ? "Miktar sıfırdan büyük olmalıdır." : "Quantity must be greater than zero.") : null,
+    !(nativeServing || Number(editor.value.gramWeight) > 0 || Number(editor.value.mlVolume) > 0) ? (tr ? "Gram veya mililitre karşılığı girilmelidir." : "Enter a gram or milliliter equivalent.") : null,
+    !editor.value.localizations.find((item) => item.language === "EN")?.label.trim() ? (tr ? "İngilizce etiket zorunludur." : "English label is required.") : null,
+    !editor.value.localizations.find((item) => item.language === "TR")?.label.trim() ? (tr ? "Türkçe etiket zorunludur." : "Turkish label is required.") : null,
+    editor.value.defaultOption && !editor.value.userVisible ? (tr ? "Varsayılan seçenek mobil uygulamada görünür olmalıdır." : "The default option must be visible in the mobile app.") : null,
+  ].filter((issue): issue is string => Boolean(issue));
+  const valid = validationIssues.length === 0;
+  const verifiesOnSave = (editor.value.userVisible || editor.value.defaultOption) && editor.value.qualityStatus !== "VERIFIED";
   return <section className="serving-option-editor" aria-label={tr ? "Porsiyon seçeneği düzenleyici" : "Serving option editor"}>
     <header><div><span className="eyebrow">{editor.id ? (tr ? "PORSİYON DÜZENLE" : "EDIT SERVING") : (tr ? "YENİ PORSİYON" : "NEW SERVING")}</span><strong>{tr ? "Kullanıcıya sunulacak ölçüyü tanımlayın" : "Define the measure shown to users"}</strong></div></header>
     <div className="serving-option-form-grid">
-      <label><span>{tr ? "İç etiket" : "Internal label"}</span><input value={editor.value.label} maxLength={120} onChange={(event) => update({ label: event.target.value })} /></label>
+      <label><span>{tr ? "İç etiket" : "Internal label"}</span><input value={editor.value.label} maxLength={120} onChange={(event) => updateInternalLabel(event.target.value)} /></label>
       <label><span>{tr ? "Birim" : "Unit"}</span><select value={editor.value.unitType} onChange={(event) => update({ unitType: event.target.value })}>{FOOD_SERVING_OPTION_UNITS.map((unit) => <option key={unit} value={unit}>{humanizeFeature(unit)}</option>)}</select></label>
       <label><span>{tr ? "Miktar" : "Quantity"}</span><input type="number" min="0.01" step="0.01" value={editor.value.quantity} onChange={(event) => update({ quantity: Number(event.target.value) })} /></label>
       <label><span>{tr ? "Gram karşılığı" : "Gram equivalent"}</span><input type="number" min="0.01" step="0.01" value={editor.value.gramWeight ?? ""} placeholder={tr ? "Sıvıda opsiyonel" : "Optional for liquids"} onChange={(event) => update({ gramWeight: event.target.value ? Number(event.target.value) : undefined })} /></label>
@@ -1391,11 +1434,13 @@ export function ServingOptionEditor({ editor, locale, busy, allowNativeServing, 
       <label><span>{tr ? "Türkçe etiket" : "Turkish label"}</span><input value={editor.value.localizations.find((item) => item.language === "TR")?.label ?? ""} maxLength={120} onChange={(event) => updateLocalization("TR", event.target.value)} /></label>
     </div>
     <div className="serving-option-switches">
-      <label><input type="checkbox" checked={editor.value.userVisible} onChange={(event) => update({ userVisible: event.target.checked })} /><span>{tr ? "Mobil uygulamada göster" : "Show in mobile app"}</span></label>
-      <label><input type="checkbox" checked={editor.value.defaultOption} onChange={(event) => update({ defaultOption: event.target.checked })} /><span>{tr ? "Varsayılan seçenek" : "Default option"}</span></label>
+      <label><input type="checkbox" checked={editor.value.userVisible} onChange={(event) => update(event.target.checked ? { userVisible: true, qualityStatus: "VERIFIED" } : { userVisible: false, defaultOption: false })} /><span>{tr ? "Mobil uygulamada göster" : "Show in mobile app"}</span></label>
+      <label><input type="checkbox" checked={editor.value.defaultOption} onChange={(event) => update(event.target.checked ? { defaultOption: true, userVisible: true, qualityStatus: "VERIFIED" } : { defaultOption: false })} /><span>{tr ? "Varsayılan seçenek" : "Default option"}</span></label>
     </div>
     <p className="serving-option-help">{allowNativeServing ? (tr ? "Servis bazlı üründe gram/ml dönüşümü yalnızca kaynakta varsa girilir. Görünür ve varsayılan seçenekler doğrulanmış olmalıdır." : "For per-serving products, add gram/ml only when the source provides it. Visible and default options must be verified.") : (tr ? "En az bir dönüşüm değeri zorunludur. Görünür ve varsayılan seçenekler doğrulanmış olmalıdır." : "At least one conversion is required. Visible and default options must be verified.")}</p>
-    <div className="inline-actions"><button className="ghost-button" type="button" onClick={onCancel}>{tr ? "İptal" : "Cancel"}</button><button className="primary-button" type="button" disabled={busy || !valid} onClick={onSave}>{busy ? (tr ? "Kaydediliyor…" : "Saving...") : (tr ? "Kaydet" : "Save")}</button></div>
+    {verifiesOnSave && <p className="serving-option-help" role="status">{tr ? "Bu görünür seçenek kaydedilirken VERIFIED olarak işaretlenecek." : "This visible option will be marked VERIFIED when saved."}</p>}
+    {validationIssues.length > 0 && <p className="serving-option-help form-validation-message" role="status">{validationIssues.join(" ")}</p>}
+    <div className="inline-actions"><button className="ghost-button" type="button" onClick={onCancel}>{tr ? "İptal" : "Cancel"}</button><button className="primary-button" type="button" disabled={busy || !valid} onClick={onSave}>{busy ? (tr ? "Kaydediliyor…" : "Saving...") : verifiesOnSave ? (tr ? "Doğrula ve kaydet" : "Verify and save") : (tr ? "Kaydet" : "Save")}</button></div>
   </section>;
 }
 
@@ -1732,7 +1777,24 @@ export function productReviewNutritionPayload(draft: ProductReviewDraft) {
     transFat: parseOptionalNumber(draft.transFat),
     sugarAlcohol: parseOptionalNumber(draft.sugarAlcohol),
     servingSizeGrams: parseOptionalNumber(draft.servingSizeGrams),
-    servingUnit: draft.servingUnit.trim() || null
+    servingUnit: draft.servingUnit.trim() || null,
+    clearServingSize: draft.servingSizeGrams.trim() === "",
+    clearServingUnit: draft.servingUnit.trim() === ""
+  };
+}
+
+export function servingUnitForReference(referenceUnit: string): string {
+  if (referenceUnit === "PER_100ML") return "MILLILITER";
+  if (referenceUnit === "PER_SERVING") return "SERVING";
+  return "GRAM";
+}
+
+export function measurementDraftForReference(draft: ProductReviewDraft, referenceUnit: string): ProductReviewDraft {
+  return {
+    ...draft,
+    nutritionReferenceUnit: referenceUnit,
+    servingUnit: servingUnitForReference(referenceUnit),
+    servingSizeGrams: referenceUnit === "PER_100ML" ? "" : draft.servingSizeGrams
   };
 }
 

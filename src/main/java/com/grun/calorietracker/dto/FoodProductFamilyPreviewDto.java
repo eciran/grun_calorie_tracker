@@ -8,6 +8,7 @@ public record FoodProductFamilyPreviewDto(
         Long representativeProductId,
         List<Long> memberProductIds,
         List<String> errors,
-        List<String> warnings
+        List<String> warnings,
+        String previewFingerprint
 ) {
 }

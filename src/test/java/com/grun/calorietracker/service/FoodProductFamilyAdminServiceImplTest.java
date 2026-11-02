@@ -7,6 +7,7 @@ import com.grun.calorietracker.entity.FoodProductFamilyEntity;
 import com.grun.calorietracker.enums.CatalogPublicationStatus;
 import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodPortionUnit;
+import com.grun.calorietracker.enums.FoodNutritionReferenceUnit;
 import com.grun.calorietracker.enums.VerificationStatus;
 import com.grun.calorietracker.repository.FoodItemRepository;
 import com.grun.calorietracker.repository.FoodProductFamilyMemberRepository;
@@ -24,6 +25,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class FoodProductFamilyAdminServiceImplTest {
     @Test
@@ -50,6 +52,58 @@ class FoodProductFamilyAdminServiceImplTest {
         assertEquals(List.of("5000111111111", "5000222222222"),
                 result.members().stream().map(member -> member.barcode()).toList());
         assertEquals(1L, fixture.savedFamily().get().getRepresentativeFoodItem().getId());
+    }
+
+    @Test
+    void applyAllVolumeFamilyNormalizesMeasurementsAndReadyAmountLabels() {
+        FoodItemEntity small = product(1L, "Coca Cola", "5000111111111");
+        FoodItemEntity large = product(2L, "Coca Cola", "5000222222222");
+        small.setNutritionReferenceUnit(FoodNutritionReferenceUnit.PER_100G);
+        small.setServingSizeGrams(500.0);
+        small.setServingUnit("GRAM");
+        large.setNutritionReferenceUnit(FoodNutritionReferenceUnit.PER_100G);
+        large.setServingSizeGrams(1000.0);
+        large.setServingUnit("GRAM");
+        var fixture = fixture(List.of(small, large));
+        var request = new FoodProductFamilyRequestDto(
+                "coca-cola:diet", "Coca Cola Diet", 1L,
+                "Volume package identity verified against source labels",
+                List.of(
+                        new FoodProductFamilyMemberRequestDto(1L, 500.0, FoodPortionUnit.MILLILITER, "Package 500 ml", true),
+                        new FoodProductFamilyMemberRequestDto(2L, 1000.0, FoodPortionUnit.MILLILITER, "1000ml bottle", false)
+                )
+        );
+
+        var result = fixture.service().apply(request, "admin@grun.local");
+
+        assertEquals(FoodNutritionReferenceUnit.PER_100ML, small.getNutritionReferenceUnit());
+        assertEquals(FoodNutritionReferenceUnit.PER_100ML, large.getNutritionReferenceUnit());
+        assertEquals("MILLILITER", small.getServingUnit());
+        assertEquals("MILLILITER", large.getServingUnit());
+        assertEquals(null, small.getServingSizeGrams());
+        assertEquals(null, large.getServingSizeGrams());
+        assertEquals(List.of("500 ml", "1 L"), result.members().stream().map(member -> member.packageLabel()).toList());
+    }
+
+    @Test
+    void previewRejectsMixedMassAndVolumeFamily() {
+        var fixture = fixture(List.of(
+                product(1L, "Doritos", "5000111111111"),
+                product(2L, "Doritos", "5000222222222")
+        ));
+        var mixed = new FoodProductFamilyRequestDto(
+                "doritos:chilli-heatwave", "Doritos Chilli Heatwave", 1L,
+                "Package identity verified against source labels",
+                List.of(
+                        new FoodProductFamilyMemberRequestDto(1L, 35.0, FoodPortionUnit.GRAM, "35 g", true),
+                        new FoodProductFamilyMemberRequestDto(2L, 100.0, FoodPortionUnit.MILLILITER, "100 ml", false)
+                )
+        );
+
+        var preview = fixture.service().preview(mixed);
+
+        assertFalse(preview.eligible());
+        assertTrue(preview.errors().contains("All members of a product family must use the same package unit"));
     }
 
     @Test
@@ -100,6 +154,65 @@ class FoodProductFamilyAdminServiceImplTest {
         assertTrue(preview.eligible());
         assertTrue(preview.warnings().contains(
                 "Nutrition profiles differ materially; source evidence must confirm package-only variation"));
+    }
+
+    @Test
+    void applyRejectsStalePreviewFingerprint() {
+        var fixture = fixture(List.of(
+                product(1L, "Doritos", "5000111111111"),
+                product(2L, "Doritos", "5000222222222")
+        ));
+
+        var exception = assertThrows(IllegalArgumentException.class, () ->
+                fixture.service().apply(request(), "stale", List.of(), "admin@grun.local"));
+
+        assertTrue(exception.getMessage().contains("Preview is stale"));
+        assertTrue(fixture.fenceAcquired().get());
+    }
+
+    @Test
+    void applyRequiresEveryPreviewWarningAcknowledgement() {
+        FoodItemEntity first = product(1L, "Doritos", "5000111111111");
+        FoodItemEntity second = product(2L, "Doritos", "5000222222222");
+        second.setCalories(430.0);
+        var fixture = fixture(List.of(first, second));
+        var preview = fixture.service().preview(request());
+
+        var exception = assertThrows(IllegalArgumentException.class, () ->
+                fixture.service().apply(request(), preview.previewFingerprint(), List.of(), "admin@grun.local"));
+
+        assertTrue(exception.getMessage().contains("exactly match"));
+        assertTrue(fixture.fenceAcquired().get());
+    }
+
+    @Test
+    void previewBlocksPackageSizeInFamilyDisplayName() {
+        var fixture = fixture(List.of(
+                product(1L, "Doritos", "5000111111111"),
+                product(2L, "Doritos", "5000222222222")
+        ));
+        var sizedName = new FoodProductFamilyRequestDto(
+                "doritos:chilli-heatwave", "Doritos Chilli Heatwave 100 G", 1L,
+                "Package identity verified against source labels", request().members());
+
+        var preview = fixture.service().preview(sizedName);
+
+        assertFalse(preview.eligible());
+        assertTrue(preview.errors().contains("Family display name must not contain a package size"));
+    }
+
+    @Test
+    void applyRejectsProductChangedAfterPreview() {
+        FoodItemEntity first = product(1L, "Doritos", "5000111111111");
+        FoodItemEntity second = product(2L, "Doritos", "5000222222222");
+        var fixture = fixture(List.of(first, second));
+        var preview = fixture.service().preview(request());
+        second.setCalories(430.0);
+
+        var exception = assertThrows(IllegalArgumentException.class, () ->
+                fixture.service().apply(request(), preview.previewFingerprint(), List.of(), "admin@grun.local"));
+
+        assertTrue(exception.getMessage().contains("Preview is stale"));
     }
 
     private Fixture fixture(List<FoodItemEntity> products) {

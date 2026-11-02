@@ -66,6 +66,7 @@ const SubscriptionsView = lazy(() => import("./pages/SubscriptionsView").then(mo
 
 const SubscriptionEventsView = lazy(() => import("./pages/SubscriptionEventsView").then(module => ({ default: module.SubscriptionEventsView })));
 const CatalogSearchView = lazy(() => import("./pages/CatalogSearchView").then(module => ({ default: module.CatalogSearchView })));
+const ProductFamiliesView = lazy(() => import("./pages/ProductFamiliesView").then(module => ({ default: module.ProductFamiliesView })));
 
 const PromotionsView = lazy(() => import("./pages/PromotionsView").then(module => ({ default: module.PromotionsView })));
 
@@ -491,6 +492,7 @@ export default function App() {
           {active === "foodQuality" && <FoodOpsView mode="quality" onError={setError} />}
           {active === "catalogExercises" && <CatalogOperationsView mode="exercises" onError={setError} />}
           {active === "catalogSearch" && <CatalogSearchView onError={setError} canManage={Boolean(accessProfile?.permissions?.includes("CATALOG_MANAGE"))} />}
+          {active === "productFamilies" && <ProductFamiliesView onError={setError} canManage={Boolean(accessProfile?.permissions?.includes("CATALOG_MANAGE"))} />}
           {active === "products" && <ProductReviewView mode="queue" canManage={Boolean(accessProfile?.permissions?.includes("CATALOG_MANAGE"))} onError={setError} />}
           {active === "productContributions" && <CatalogEvidenceWorkspace accessProfile={accessProfile} onError={setError} targetContext={targetContext?.section === "productContributions" ? targetContext : null} onClearTarget={() => setTargetContext(null)} />}
           {active === "productDuplicates" && <CatalogEvidenceWorkspace initialTab="duplicates" accessProfile={accessProfile} onError={setError} />}
@@ -675,7 +677,7 @@ function LoginView({
         </div>
         <label>
           Email
-          <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" autoComplete="username" />
+          <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" autoComplete="username" placeholder="Admin email" />
         </label>
         {!forgotMode && <label>
           Password

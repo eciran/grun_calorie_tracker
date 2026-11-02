@@ -487,18 +487,27 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
         applyDoubleChange(audits, product, reviewedBy, "saturatedFat", product.getSaturatedFat(), NutritionValueNormalizer.macro(request.getSaturatedFat()), product::setSaturatedFat, reviewNote);
         applyDoubleChange(audits, product, reviewedBy, "transFat", product.getTransFat(), NutritionValueNormalizer.macro(request.getTransFat()), product::setTransFat, reviewNote);
         applyDoubleChange(audits, product, reviewedBy, "sugarAlcohol", product.getSugarAlcohol(), NutritionValueNormalizer.macro(request.getSugarAlcohol()), product::setSugarAlcohol, reviewNote);
-        applyDoubleChange(
-                audits,
-                product,
-                reviewedBy,
-                "servingSizeGrams",
-                product.getServingSizeGrams(),
-                NutritionValueNormalizer.servingSize(request.getServingSizeGrams()),
-                product::setServingSizeGrams,
-                reviewNote
-        );
+        if (Boolean.TRUE.equals(request.getClearServingSize())) {
+            applyNullableDoubleChange(audits, product, reviewedBy, "servingSizeGrams",
+                    product.getServingSizeGrams(), null, product::setServingSizeGrams, reviewNote);
+        } else {
+            applyDoubleChange(
+                    audits,
+                    product,
+                    reviewedBy,
+                    "servingSizeGrams",
+                    product.getServingSizeGrams(),
+                    NutritionValueNormalizer.servingSize(request.getServingSizeGrams()),
+                    product::setServingSizeGrams,
+                    reviewNote
+            );
+        }
         String servingUnit = trimToNull(request.getServingUnit());
-        if (servingUnit != null) {
+        if (Boolean.TRUE.equals(request.getClearServingUnit())) {
+            addAuditIfChanged(audits, product, reviewedBy, FoodProductReviewAuditAction.REVIEW_UPDATE,
+                    "servingUnit", product.getServingUnit(), null, reviewNote);
+            product.setServingUnit(null);
+        } else if (servingUnit != null) {
             addAuditIfChanged(
                     audits,
                     product,
@@ -1578,6 +1587,21 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
                 newValue,
                 note
         );
+        setter.accept(newValue);
+    }
+
+    private void applyNullableDoubleChange(
+            List<FoodProductReviewAuditEntity> audits,
+            FoodItemEntity product,
+            String reviewedBy,
+            String fieldName,
+            Double oldValue,
+            Double newValue,
+            java.util.function.Consumer<Double> setter,
+            String note
+    ) {
+        addAuditIfChanged(audits, product, reviewedBy, FoodProductReviewAuditAction.REVIEW_UPDATE,
+                fieldName, oldValue, newValue, note);
         setter.accept(newValue);
     }
 
