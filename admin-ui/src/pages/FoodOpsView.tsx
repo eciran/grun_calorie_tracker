@@ -17,6 +17,7 @@ export const CatalogIssueChart = lazy(() => import("../CatalogQualityCharts").th
 export const CatalogScanTrendChart = lazy(() => import("../CatalogQualityCharts").then((module) => ({ default: module.CatalogScanTrendChart })));
 
 export const PRODUCT_QUALITY_SUGGESTION_STATUSES = ["OPEN", "ACCEPTED", "REJECTED"];
+export const PRODUCT_QUALITY_SUGGESTION_TYPES = ["NAME_CLEANUP", "DISPLAY_NAME", "LOCALIZATION", "SEARCH_ALIAS", "SERVING_OPTION", "CANONICAL_DUPLICATE_REVIEW", "MISSING_MACRO_DATA", "MISSING_MICRO_DATA", "SUSPICIOUS_CALORIE_VALUE", "MACRO_CALORIE_MISMATCH", "SUSPICIOUS_SODIUM_VALUE", "MISSING_SERVING_SIZE", "SOURCE_CONFLICT", "IMAGE_REVIEW_REQUIRED", "REGION_MISMATCH", "LABEL_REVIEW_REQUIRED"];
 
 export type FoodOpsMode = "overview" | "imports" | "regions" | "quality";
 
@@ -43,7 +44,7 @@ export function FoodOpsView({ mode, onError }: { mode: FoodOpsMode; onError: (me
   const [suggestionSource, setSuggestionSource] = useState("");
   const [suggestionType, setSuggestionType] = useState("");
   const [minimumConfidence, setMinimumConfidence] = useState("0");
-  const suggestionPath = buildProductQualitySuggestionPath({ status: suggestionStatus, page: suggestionPage, size: suggestionPageSize });
+  const suggestionPath = buildProductQualitySuggestionPath({ status: suggestionStatus, query: suggestionQuery, source: suggestionSource, suggestionType, minimumConfidence, page: suggestionPage, size: suggestionPageSize });
   const { data: suggestions, state: suggestionState, reload: reloadSuggestions } = useEndpoint<ProductQualitySuggestionPage>(suggestionPath, onError);
   const { data: scanRuns, state: scanRunState, reload: reloadScanRuns } = useEndpoint<ProductQualityScanRunPage>("/api/v1/admin/products/quality-suggestions/scan-runs?page=0&size=5", onError);
   const { data: qualityAnalytics, state: qualityAnalyticsState, reload: reloadQualityAnalytics } = useEndpoint<AdminCatalogQualityAnalytics>(`/api/v1/admin/catalog/quality-analytics?windowDays=${qualityWindowDays}`, onError);
@@ -55,15 +56,7 @@ export function FoodOpsView({ mode, onError }: { mode: FoodOpsMode; onError: (me
   const [qualityScanHistoryOpen, setQualityScanHistoryOpen] = useState(false);
   const rows = products?.content ?? [];
   const suggestionRows = suggestions?.content ?? [];
-  const suggestionTypes = Array.from(new Set(suggestionRows.map((item) => item.suggestionType).filter(Boolean) as string[])).sort();
-  const visibleSuggestionRows = suggestionRows.filter((item) => {
-    const query = suggestionQuery.trim().toLocaleLowerCase(locale === "tr" ? "tr-TR" : "en-US");
-    const haystack = `${item.productName ?? ""} ${item.brand ?? ""} ${item.fieldName ?? ""} ${item.reason ?? ""}`.toLocaleLowerCase(locale === "tr" ? "tr-TR" : "en-US");
-    return (!query || haystack.includes(query))
-      && (!suggestionSource || item.source === suggestionSource)
-      && (!suggestionType || item.suggestionType === suggestionType)
-      && Number(item.confidenceScore ?? 0) >= Number(minimumConfidence || 0);
-  });
+  const visibleSuggestionRows = suggestionRows;
   const scanRunRows = scanRuns?.content ?? [];
   const selectedOpenSuggestionIds = selectedSuggestionIds.filter((id) => suggestionRows.some((item) => item.id === id && item.status === "OPEN"));
   const byRegion = countBy(rows, (item) => item.marketRegion ?? "Unknown");
@@ -82,6 +75,11 @@ export function FoodOpsView({ mode, onError }: { mode: FoodOpsMode; onError: (me
       adminNote: aiSettings.adminNote ?? ""
     });
   }, [aiSettings]);
+
+  useEffect(() => {
+    setSuggestionPage(0);
+    setSelectedSuggestionIds([]);
+  }, [suggestionQuery, suggestionSource, suggestionType, minimumConfidence]);
 
 
   const title = {
@@ -457,7 +455,7 @@ export function FoodOpsView({ mode, onError }: { mode: FoodOpsMode; onError: (me
             {tr ? "Sorun türü" : "Issue type"}
             <select value={suggestionType} onChange={(event) => setSuggestionType(event.target.value)}>
               <option value="">{tr ? "Tüm türler" : "All types"}</option>
-              {suggestionTypes.map((item) => <option key={item} value={item}>{shortFeature(item)}</option>)}
+              {PRODUCT_QUALITY_SUGGESTION_TYPES.map((item) => <option key={item} value={item}>{shortFeature(item)}</option>)}
             </select>
           </label>
           <label>
@@ -953,9 +951,13 @@ export function DistributionPanel({ title, items }: { title: string; items: Reco
   );
 }
 
-export function buildProductQualitySuggestionPath(filters: { status: string; page: number; size: number }): string {
+export function buildProductQualitySuggestionPath(filters: { status: string; query?: string; source?: string; suggestionType?: string; minimumConfidence?: string; page: number; size: number }): string {
   const params = new URLSearchParams();
   params.set("status", filters.status || "OPEN");
+  if (filters.query?.trim()) params.set("query", filters.query.trim());
+  if (filters.source) params.set("source", filters.source);
+  if (filters.suggestionType) params.set("suggestionType", filters.suggestionType);
+  if (Number(filters.minimumConfidence ?? 0) > 0) params.set("minimumConfidence", String(filters.minimumConfidence));
   params.set("page", String(filters.page));
   params.set("size", String(filters.size));
   return `/api/v1/admin/products/quality-suggestions?${params.toString()}`;

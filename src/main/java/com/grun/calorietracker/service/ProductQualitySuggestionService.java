@@ -13,6 +13,8 @@ import com.grun.calorietracker.dto.ProductQualityScanRunDetailDto;
 import com.grun.calorietracker.enums.MarketRegion;
 import com.grun.calorietracker.enums.ProductQualityScanTriggerType;
 import com.grun.calorietracker.enums.ProductQualitySuggestionStatus;
+import com.grun.calorietracker.enums.ProductQualitySuggestionSource;
+import com.grun.calorietracker.enums.ProductQualitySuggestionType;
 
 public interface ProductQualitySuggestionService {
 
@@ -25,6 +27,11 @@ public interface ProductQualitySuggestionService {
     }
 
     ProductQualitySuggestionPageDto getSuggestions(ProductQualitySuggestionStatus status, int page, int size);
+
+    ProductQualitySuggestionPageDto getSuggestions(ProductQualitySuggestionStatus status, String query,
+                                                    ProductQualitySuggestionSource source,
+                                                    ProductQualitySuggestionType suggestionType,
+                                                    Integer minimumConfidence, int page, int size);
 
     ProductQualityScanRunPageDto getScanRuns(int page, int size);
 

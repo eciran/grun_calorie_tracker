@@ -247,6 +247,7 @@ type CatalogImportResult = {
 };
 
 type CorrectionImportNotice = { tone: "success" | "warning" | "info"; message: string };
+type ProductReviewSummary = { totalElements: number; highQualityCount: number; reviewQualityCount: number; lowQualityCount: number; highPriorityCount: number; missingImageCount: number; averageQuality: number };
 
 const productReviewMessages = {
   tr: {
@@ -342,6 +343,8 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
     size: pageSize
   });
   const { data, state, reload } = useEndpoint<PageResponse<FoodProduct>>(path, onError);
+  const summaryPath = buildProductReviewSummaryPath({ query, verificationStatus, imageStatus, region, catalogType, dataSource, qualityIssue, publicationStatus });
+  const { data: reviewSummary } = useEndpoint<ProductReviewSummary>(summaryPath, onError);
   const { data: imageWorkload } = useEndpoint<PageResponse<FoodProduct>>("/api/v1/admin/products/review?imageStatus=NEEDS_REVIEW&qualityIssue=MISSING_IMAGE&page=0&size=1", onError);
   const { data: nutritionWorkload } = useEndpoint<PageResponse<FoodProduct>>("/api/v1/admin/products/review?qualityIssue=SUSPICIOUS_MACROS&page=0&size=1", onError);
   const { data: categoryWorkload } = useEndpoint<PageResponse<FoodProduct>>("/api/v1/admin/products/review?qualityIssue=MISSING_CANONICAL_CATEGORY&page=0&size=1", onError);
@@ -355,9 +358,9 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
     && selectedPublishIds.has(item.id)
     && item.verificationStatus !== "VERIFIED").length;
   const totalElements = data?.totalElements ?? rows.length;
-  const highPriorityCount = rows.filter((item) => (item.reviewPriority ?? 0) >= 100).length;
-  const missingImageCount = rows.filter((item) => !item.displayImageUrl && !item.imageUrl && !item.externalImageUrl).length;
-  const averageQuality = rows.length ? Math.round(rows.reduce((sum, item) => sum + Number(item.qualityScore ?? 0), 0) / rows.length) : 0;
+  const highPriorityCount = reviewSummary?.highPriorityCount ?? 0;
+  const missingImageCount = reviewSummary?.missingImageCount ?? 0;
+  const averageQuality = reviewSummary?.averageQuality ?? 0;
   const activeFilterCount = [query, verificationStatus, imageStatus, region, catalogType, dataSource, qualityIssue, publicationStatus].filter(Boolean).length;
   const qualityWorkspace = mode !== "queue";
   const modeTitle = qualityWorkspace ? (locale === "tr" ? "Ürün kalite merkezi" : "Product quality center") : text.modeTitle[viewMode];
@@ -701,7 +704,7 @@ const [correctionFile, setCorrectionFile] = useState<File | null>(null);
       {viewMode === "queue" && <section className="modern-workspace-hero product-review-hero">
         <div className="modern-hero-chart">
           <div className="modern-section-heading"><div><span className="eyebrow">{locale === "tr" ? "KATALOG KARAR MERKEZİ" : "CATALOG DECISION CENTER"}</span><h3>{locale === "tr" ? "İnceleme sağlığı" : "Review health"}</h3><p>{locale === "tr" ? "Kalite dağılımı ve öncelikli sorunlar, sıradaki doğru kararı hızlandırır." : "Quality distribution and priority signals guide the next decision."}</p></div><strong>{formatValue(totalElements)}</strong></div>
-          <ProductReviewHealthChart products={rows} locale={locale} />
+          <ProductReviewHealthChart highQuality={reviewSummary?.highQualityCount ?? 0} reviewQuality={reviewSummary?.reviewQualityCount ?? 0} lowQuality={reviewSummary?.lowQualityCount ?? 0} locale={locale} />
         </div>
         <div className="modern-hero-signals">
           <article className="category"><span>{text.categoryQueue}</span><strong>{formatValue(categoryWorkload?.totalElements ?? 0)}</strong><small>{text.categoryQueueHint}</small><button className="text-action" type="button" onClick={openCategoryQueue}>{text.openQueue}</button></article>
@@ -1687,6 +1690,15 @@ export function buildProductReviewPath(filters: {
   params.set("page", String(filters.page));
   params.set("size", String(filters.size));
   return `/api/v1/admin/products/review?${params.toString()}`;
+}
+
+export function buildProductReviewSummaryPath(filters: Omit<ProductReviewRouteState, "page" | "size" | "selectedProductId">): string {
+  const params = new URLSearchParams();
+  Object.entries(filters).forEach(([key, value]) => {
+    if (key === "verificationStatus" && filters.query.trim() && value === "RAW_IMPORTED") return;
+    if (value) params.set(key, String(value));
+  });
+  return `/api/v1/admin/products/review/summary?${params.toString()}`;
 }
 
 export function buildProductReviewExportPath(filters: {

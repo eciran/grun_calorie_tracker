@@ -173,6 +173,7 @@ class ProductQualitySuggestionServiceImplTest {
         assertTrue(saved.stream().anyMatch(suggestion ->
                 suggestion.getFoodItem().getId().equals(1L)
                         && suggestion.getSuggestionType() == ProductQualitySuggestionType.SEARCH_ALIAS
+                        && "searchAliases.TR".equals(suggestion.getFieldName())
                         && "sut".equals(suggestion.getSuggestedValue())
         ));
         assertTrue(saved.stream().noneMatch(suggestion -> suggestion.getFoodItem().getId().equals(2L)));
@@ -625,6 +626,31 @@ class ProductQualitySuggestionServiceImplTest {
                 ArgumentCaptor.forClass(FoodItemSearchAliasEntity.class);
         verify(foodItemSearchAliasRepository).save(aliasCaptor.capture());
         assertEquals(PreferredLanguage.EN, aliasCaptor.getValue().getLanguage());
+    }
+
+    @Test
+    void acceptSuggestion_whenLegacyRuleAliasField_usesTurkishLanguage() {
+        FoodItemEntity product = product(1L, "Yoğurt", 61.0);
+        ProductQualitySuggestionEntity suggestion = suggestion(
+                24L, product, ProductQualitySuggestionType.SEARCH_ALIAS, null, "yogurt"
+        );
+        suggestion.setFieldName("searchAlias");
+        when(productQualitySuggestionRepository.findForUpdateById(24L)).thenReturn(Optional.of(suggestion));
+        when(foodItemSearchAliasRepository.findByFoodItemIdAndNormalizedAliasAndLanguage(
+                1L, "yogurt", PreferredLanguage.TR
+        )).thenReturn(Optional.empty());
+        when(foodItemSearchAliasRepository.save(any(FoodItemSearchAliasEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(productQualitySuggestionRepository.save(any(ProductQualitySuggestionEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.acceptSuggestion(24L, "admin@test.com");
+
+        ArgumentCaptor<FoodItemSearchAliasEntity> aliasCaptor =
+                ArgumentCaptor.forClass(FoodItemSearchAliasEntity.class);
+        verify(foodItemSearchAliasRepository).save(aliasCaptor.capture());
+        assertEquals(PreferredLanguage.TR, aliasCaptor.getValue().getLanguage());
+        assertEquals(ProductQualitySuggestionStatus.ACCEPTED, suggestion.getStatus());
     }
     @Test
     void acceptSuggestion_whenSuggestionTypeDoesNotOwnField_treatsItAsReviewOnly() {

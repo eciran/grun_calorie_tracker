@@ -238,12 +238,47 @@ public class ProductQualitySuggestionServiceImpl implements ProductQualitySugges
     @Override
     @Transactional(readOnly = true)
     public ProductQualitySuggestionPageDto getSuggestions(ProductQualitySuggestionStatus status, int page, int size) {
+        return getSuggestions(status, null, null, null, null, page, size);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ProductQualitySuggestionPageDto getSuggestions(
+            ProductQualitySuggestionStatus status,
+            String searchQuery,
+            ProductQualitySuggestionSource source,
+            ProductQualitySuggestionType suggestionType,
+            Integer minimumConfidence,
+            int page,
+            int size
+    ) {
         ProductQualitySuggestionStatus resolvedStatus = status == null ? ProductQualitySuggestionStatus.OPEN : status;
         int resolvedPage = Math.max(page, 0);
         int resolvedSize = Math.max(1, Math.min(size, 100));
-        Page<ProductQualitySuggestionEntity> suggestions = productQualitySuggestionRepository.findByStatusOrderByCreatedAtDesc(
-                resolvedStatus,
-                PageRequest.of(resolvedPage, resolvedSize)
+        String normalizedQuery = trimToNull(searchQuery);
+        Specification<ProductQualitySuggestionEntity> specification = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            predicates.add(cb.equal(root.get("status"), resolvedStatus));
+            if (source != null) predicates.add(cb.equal(root.get("source"), source));
+            if (suggestionType != null) predicates.add(cb.equal(root.get("suggestionType"), suggestionType));
+            if (minimumConfidence != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("confidenceScore"), Math.max(0, Math.min(100, minimumConfidence))));
+            }
+            if (normalizedQuery != null) {
+                String like = "%" + normalizedQuery.toLowerCase(Locale.ROOT) + "%";
+                var product = root.join("foodItem");
+                predicates.add(cb.or(
+                        cb.like(cb.lower(product.get("name")), like),
+                        cb.like(cb.lower(product.get("brand")), like),
+                        cb.like(cb.lower(root.get("fieldName")), like),
+                        cb.like(cb.lower(root.get("reason")), like)
+                ));
+            }
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
+        Page<ProductQualitySuggestionEntity> suggestions = productQualitySuggestionRepository.findAll(
+                specification,
+                PageRequest.of(resolvedPage, resolvedSize, Sort.by(Sort.Direction.DESC, "createdAt"))
         );
         return new ProductQualitySuggestionPageDto(
                 suggestions.getContent().stream().map(this::toDto).toList(),
@@ -1275,7 +1310,7 @@ public class ProductQualitySuggestionServiceImpl implements ProductQualitySugges
             }
             case SEARCH_ALIAS -> {
                 String field = trimToNull(suggestion.getFieldName());
-                if (field != null && !field.matches("searchAliases\\.(EN|TR)")) {
+                if (field != null && !field.equals("searchAlias") && !field.matches("searchAliases\\.(EN|TR)")) {
                     throw new IllegalArgumentException("Search alias suggestion has an unsupported language field.");
                 }
                 validateTextLength(suggestedValue, "searchAlias", 255);
@@ -1420,6 +1455,11 @@ public class ProductQualitySuggestionServiceImpl implements ProductQualitySugges
         String field = trimToNull(suggestion.getFieldName());
         if (field != null && field.matches("searchAliases\\.(EN|TR)")) {
             return PreferredLanguage.valueOf(field.substring(field.lastIndexOf('.') + 1));
+        }
+        // Legacy rule-based scans stored the singular field name. Those suggestions
+        // were always Turkish transliteration aliases and must remain applicable.
+        if (field == null || field.equals("searchAlias")) {
+            return PreferredLanguage.TR;
         }
         return PreferredLanguage.TR;
     }
@@ -1680,7 +1720,7 @@ public class ProductQualitySuggestionServiceImpl implements ProductQualitySugges
         suggestions.add(buildSuggestion(
                 product,
                 ProductQualitySuggestionType.SEARCH_ALIAS,
-                "searchAlias",
+                "searchAliases.TR",
                 null,
                 alias,
                 reason,

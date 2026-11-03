@@ -70,13 +70,13 @@ export function ProductQualityWorkloadChart({ categories, images, nutrition, rej
   return <AdminEChart ariaLabel="Product quality workload" buildOption={buildOption} className="product-quality-workload-chart" />;
 }
 
-export function ProductReviewHealthChart({ products, locale = "en" }: { products: FoodProduct[]; locale?: "tr" | "en" }) {
+export function ProductReviewHealthChart({ highQuality, reviewQuality, lowQuality, locale = "en" }: { highQuality: number; reviewQuality: number; lowQuality: number; locale?: "tr" | "en" }) {
   const buildOption = useCallback(() => {
     const palette = adminChartPalette();
     const bands = [
-      { name: locale === "tr" ? "Yüksek kalite" : "High quality", value: products.filter((item) => Number(item.qualityScore ?? 0) >= 80).length, color: "#2f8f68" },
-      { name: locale === "tr" ? "İnceleme" : "Review", value: products.filter((item) => Number(item.qualityScore ?? 0) >= 50 && Number(item.qualityScore ?? 0) < 80).length, color: "#b7832f" },
-      { name: locale === "tr" ? "Düşük kalite" : "Low quality", value: products.filter((item) => Number(item.qualityScore ?? 0) < 50).length, color: "#b63c4b" }
+      { name: locale === "tr" ? "Yüksek kalite" : "High quality", value: highQuality, color: "#2f8f68" },
+      { name: locale === "tr" ? "İnceleme" : "Review", value: reviewQuality, color: "#b7832f" },
+      { name: locale === "tr" ? "Düşük kalite" : "Low quality", value: lowQuality, color: "#b63c4b" }
     ];
     return {
       grid: { top: 18, right: 32, bottom: 34, left: 108 }, tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
@@ -84,7 +84,7 @@ export function ProductReviewHealthChart({ products, locale = "en" }: { products
       yAxis: { type: "category", inverse: true, data: bands.map((item) => item.name), axisLine: { show: false }, axisTick: { show: false }, axisLabel: { color: palette.text } },
       series: [{ type: "bar", barMaxWidth: 25, data: bands.map((item) => ({ value: item.value, itemStyle: { color: item.color, borderRadius: [0, 5, 5, 0] }, label: { show: true, position: "right", color: palette.text } })) }]
     };
-  }, [locale, products]);
+  }, [highQuality, locale, lowQuality, reviewQuality]);
   return <AdminEChart ariaLabel={locale === "tr" ? "Ürün inceleme kalite dağılımı" : "Product review quality distribution"} buildOption={buildOption} className="product-review-health-chart" />;
 }
 

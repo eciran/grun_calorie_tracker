@@ -539,7 +539,7 @@ class AdminFoodProductReviewControllerTest {
                 null
         );
         ProductQualitySuggestionPageDto response = new ProductQualitySuggestionPageDto(List.of(suggestion), 0, 25, 1, 1);
-        when(productQualitySuggestionService.getSuggestions(ProductQualitySuggestionStatus.OPEN, 0, 25)).thenReturn(response);
+        when(productQualitySuggestionService.getSuggestions(ProductQualitySuggestionStatus.OPEN, null, null, null, null, 0, 25)).thenReturn(response);
 
         mockMvc.perform(get("/api/v1/admin/products/quality-suggestions")
                         .param("status", "OPEN")
@@ -550,7 +550,7 @@ class AdminFoodProductReviewControllerTest {
                 .andExpect(jsonPath("$.content[0].suggestionType").value("SEARCH_ALIAS"))
                 .andExpect(jsonPath("$.content[0].suggestedValue").value("sut"));
 
-        verify(productQualitySuggestionService).getSuggestions(ProductQualitySuggestionStatus.OPEN, 0, 25);
+        verify(productQualitySuggestionService).getSuggestions(ProductQualitySuggestionStatus.OPEN, null, null, null, null, 0, 25);
     }
 
     @Test

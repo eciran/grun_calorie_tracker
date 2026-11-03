@@ -4696,14 +4696,15 @@ label {
 .modern-section-heading p { margin:5px 0 0; color:var(--muted); }
 .modern-section-heading > strong { color:var(--primary); font-size:clamp(1.5rem,2vw,2.2rem); }
 .modern-hero-signals { position:relative; z-index:1; display:grid; gap:10px; }
-.modern-hero-signals article { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:5px 12px; align-content:center; min-height:92px; padding:14px 16px; border:1px solid color-mix(in srgb,var(--line) 84%,transparent); border-radius:var(--radius-lg); background:color-mix(in srgb,var(--surface) 93%,transparent); box-shadow:0 8px 22px rgba(35,31,39,.06); }
-.modern-hero-signals article::before { grid-row:1/span 3; width:5px; height:100%; border-radius:999px; background:var(--primary); content:""; }
+.modern-hero-signals article { position:relative; display:grid; grid-template-columns:minmax(0,1fr) auto; gap:6px 16px; align-content:center; min-height:92px; padding:15px 18px 15px 24px; border:1px solid color-mix(in srgb,var(--line) 84%,transparent); border-radius:var(--radius-lg); background:color-mix(in srgb,var(--surface) 93%,transparent); box-shadow:0 8px 22px rgba(35,31,39,.06); text-align:left; }
+.modern-hero-signals article::before { position:absolute; top:14px; bottom:14px; left:12px; width:4px; border-radius:999px; background:var(--primary); content:""; }
 .modern-hero-signals article.accent::before { background:var(--accent); }
 .modern-hero-signals article.warning::before { background:var(--warning); }
 .modern-hero-signals article.danger::before { background:var(--danger); }
 .modern-hero-signals span { color:var(--muted-strong); font-size:.78rem; font-weight:700; }
-.modern-hero-signals strong { grid-column:3; grid-row:1/span 2; align-self:center; font-size:1.7rem; }
-.modern-hero-signals small { grid-column:2; color:var(--muted); }
+.modern-hero-signals strong { grid-column:2; grid-row:1/span 2; align-self:center; min-width:3ch; font-size:1.7rem; line-height:1; text-align:right; font-variant-numeric:tabular-nums; }
+.modern-hero-signals small { grid-column:1; color:var(--muted); line-height:1.35; }
+.modern-hero-signals .text-action { grid-column:1; justify-self:start; margin-top:2px; }
 .modern-hero-progress { display:grid; gap:7px; max-width:620px; margin-top:10px; }
 .modern-hero-progress > span { height:9px; overflow:hidden; border-radius:999px; background:var(--surface-container); }
 .modern-hero-progress b { display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg,var(--primary),var(--accent)); }

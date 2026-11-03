@@ -19,6 +19,7 @@ import com.grun.calorietracker.dto.FoodProductQualityIssueDto;
 import com.grun.calorietracker.dto.FoodProductReviewAuditDto;
 import com.grun.calorietracker.dto.FoodProductReviewAuditPageDto;
 import com.grun.calorietracker.dto.FoodProductReviewPageDto;
+import com.grun.calorietracker.dto.FoodProductReviewSummaryDto;
 import com.grun.calorietracker.dto.FoodProductReviewRequestDto;
 import com.grun.calorietracker.dto.FoodSearchAliasDto;
 import com.grun.calorietracker.dto.FoodSearchAliasRequestDto;
@@ -68,6 +69,8 @@ import com.grun.calorietracker.service.support.GtinValidator;
 import com.grun.calorietracker.service.support.FoodProductQualityRules;
 import com.grun.calorietracker.service.support.NutritionValueNormalizer;
 import com.grun.calorietracker.service.support.FoodNutritionUnitContract;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
@@ -126,6 +129,9 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
     private final ObjectMapper objectMapper;
     private ExternalFoodImportFence externalFoodImportFence;
 
+    @PersistenceContext
+    private EntityManager entityManager;
+
     @Autowired
     void setExternalFoodImportFence(ExternalFoodImportFence fence) {
         this.externalFoodImportFence = fence;
@@ -162,6 +168,54 @@ public class FoodProductReviewServiceImpl implements FoodProductReviewService {
         this.foodProductQualityIssueTracker = foodProductQualityIssueTracker;
         this.objectMapper = objectMapper;
     }
+    @Override
+    @Transactional(readOnly = true)
+    public FoodProductReviewSummaryDto getProductReviewSummary(
+            VerificationStatus verificationStatus,
+            ImageStatus imageStatus,
+            MarketRegion marketRegion,
+            FoodCatalogType catalogType,
+            FoodDataSource dataSource,
+            FoodProductQualityIssue qualityIssue,
+            String searchQuery,
+            CatalogPublicationStatus publicationStatus
+    ) {
+        var criteriaBuilder = entityManager.getCriteriaBuilder();
+        CriteriaQuery<Object[]> query = criteriaBuilder.createQuery(Object[].class);
+        Root<FoodItemEntity> root = query.from(FoodItemEntity.class);
+        Specification<FoodItemEntity> specification = buildReviewSpecification(
+                verificationStatus, imageStatus, marketRegion, catalogType, dataSource,
+                qualityIssue, searchQuery, publicationStatus
+        );
+        Predicate filter = specification.toPredicate(root, query, criteriaBuilder);
+        var quality = root.<Integer>get("qualityScore");
+        Predicate missingImage = criteriaBuilder.and(
+                isBlank(root, criteriaBuilder, "displayImageUrl"),
+                isBlank(root, criteriaBuilder, "imageUrl"),
+                isBlank(root, criteriaBuilder, "externalImageUrl")
+        );
+        query.multiselect(
+                criteriaBuilder.count(root),
+                criteriaBuilder.sum(criteriaBuilder.<Long>selectCase().when(criteriaBuilder.greaterThanOrEqualTo(quality, 80), 1L).otherwise(0L)),
+                criteriaBuilder.sum(criteriaBuilder.<Long>selectCase().when(criteriaBuilder.and(criteriaBuilder.greaterThanOrEqualTo(quality, 50), criteriaBuilder.lessThan(quality, 80)), 1L).otherwise(0L)),
+                criteriaBuilder.sum(criteriaBuilder.<Long>selectCase().when(criteriaBuilder.or(criteriaBuilder.isNull(quality), criteriaBuilder.lessThan(quality, 50)), 1L).otherwise(0L)),
+                criteriaBuilder.sum(criteriaBuilder.<Long>selectCase().when(criteriaBuilder.greaterThanOrEqualTo(root.<Integer>get("reviewPriority"), 100), 1L).otherwise(0L)),
+                criteriaBuilder.sum(criteriaBuilder.<Long>selectCase().when(missingImage, 1L).otherwise(0L)),
+                criteriaBuilder.avg(quality)
+        );
+        if (filter != null) query.where(filter);
+        Object[] result = entityManager.createQuery(query).getSingleResult();
+        Number average = (Number) result[6];
+        return new FoodProductReviewSummaryDto(
+                aggregateNumber(result[0]), aggregateNumber(result[1]), aggregateNumber(result[2]), aggregateNumber(result[3]),
+                aggregateNumber(result[4]), aggregateNumber(result[5]), average == null ? 0 : (int) Math.round(average.doubleValue())
+        );
+    }
+
+    private long aggregateNumber(Object value) {
+        return value instanceof Number number ? number.longValue() : 0L;
+    }
+
     @Override
     @Transactional(readOnly = true)
     public List<FoodProductDto> getProductsForReview(VerificationStatus verificationStatus, ImageStatus imageStatus) {

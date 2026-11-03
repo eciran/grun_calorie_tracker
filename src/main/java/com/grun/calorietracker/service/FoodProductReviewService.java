@@ -18,6 +18,7 @@ import com.grun.calorietracker.dto.FoodProductReviewRequestDto;
 import com.grun.calorietracker.dto.FoodSearchAliasDto;
 import com.grun.calorietracker.dto.FoodSearchAliasRequestDto;
 import com.grun.calorietracker.dto.FoodProductReviewPageDto;
+import com.grun.calorietracker.dto.FoodProductReviewSummaryDto;
 import com.grun.calorietracker.enums.FoodCatalogType;
 import com.grun.calorietracker.enums.FoodDataSource;
 import com.grun.calorietracker.enums.FoodProductQualityIssue;
@@ -40,6 +41,7 @@ public interface FoodProductReviewService {
     FoodProductReviewPageDto getProductsForReview(VerificationStatus verificationStatus, ImageStatus imageStatus, MarketRegion marketRegion, FoodCatalogType catalogType, FoodDataSource dataSource, FoodProductQualityIssue qualityIssue, int page, int size);
     FoodProductReviewPageDto getProductsForReview(VerificationStatus verificationStatus, ImageStatus imageStatus, MarketRegion marketRegion, FoodCatalogType catalogType, FoodDataSource dataSource, FoodProductQualityIssue qualityIssue, String query, int page, int size);
     FoodProductReviewPageDto getProductsForReview(VerificationStatus verificationStatus, ImageStatus imageStatus, MarketRegion marketRegion, FoodCatalogType catalogType, FoodDataSource dataSource, FoodProductQualityIssue qualityIssue, String query, CatalogPublicationStatus publicationStatus, int page, int size);
+    FoodProductReviewSummaryDto getProductReviewSummary(VerificationStatus verificationStatus, ImageStatus imageStatus, MarketRegion marketRegion, FoodCatalogType catalogType, FoodDataSource dataSource, FoodProductQualityIssue qualityIssue, String query, CatalogPublicationStatus publicationStatus);
     FoodProductReviewPageDto searchCatalog(String query, VerificationStatus verificationStatus, ImageStatus imageStatus,
                                            MarketRegion marketRegion, FoodCatalogType catalogType,
                                            FoodDataSource dataSource, int page, int size);

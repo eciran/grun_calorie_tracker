@@ -24,6 +24,7 @@ import com.grun.calorietracker.dto.FoodCategoryBackfillPreviewDto;
 import com.grun.calorietracker.dto.FoodProductQualityIssueDto;
 import com.grun.calorietracker.dto.FoodProductReviewAuditPageDto;
 import com.grun.calorietracker.dto.FoodProductReviewPageDto;
+import com.grun.calorietracker.dto.FoodProductReviewSummaryDto;
 import com.grun.calorietracker.dto.FoodProductReviewRequestDto;
 import com.grun.calorietracker.dto.FoodSearchAliasDto;
 import com.grun.calorietracker.dto.FoodSearchAliasRequestDto;
@@ -220,11 +221,17 @@ public class AdminFoodProductReviewController {
     public ResponseEntity<ProductQualitySuggestionPageDto> getProductQualitySuggestions(
             @Parameter(description = "Suggestion status filter.", example = "OPEN")
             @RequestParam(defaultValue = "OPEN") ProductQualitySuggestionStatus status,
+            @RequestParam(required = false) String query,
+            @RequestParam(required = false) com.grun.calorietracker.enums.ProductQualitySuggestionSource source,
+            @RequestParam(required = false) com.grun.calorietracker.enums.ProductQualitySuggestionType suggestionType,
+            @RequestParam(required = false) @Min(0) @Max(100) Integer minimumConfidence,
             @Parameter(description = "Zero-based page number.", example = "0")
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @Parameter(description = "Page size. Maximum 100.", example = "25")
             @RequestParam(defaultValue = "25") @Min(1) @Max(100) int size) {
-        return ResponseEntity.ok(productQualitySuggestionService.getSuggestions(status, page, size));
+        return ResponseEntity.ok(productQualitySuggestionService.getSuggestions(
+                status, query, source, suggestionType, minimumConfidence, page, size
+        ));
     }
 
     @GetMapping("/quality-suggestions/scan-runs")
@@ -513,6 +520,23 @@ public class AdminFoodProductReviewController {
                 publicationStatus,
                 page,
                 size
+        ));
+    }
+
+    @GetMapping("/review/summary")
+    @Operation(summary = "Summarize the complete filtered product review queue")
+    public ResponseEntity<FoodProductReviewSummaryDto> getProductReviewSummary(
+            @RequestParam(required = false) VerificationStatus verificationStatus,
+            @RequestParam(required = false) ImageStatus imageStatus,
+            @RequestParam(required = false) MarketRegion region,
+            @RequestParam(required = false) FoodCatalogType catalogType,
+            @RequestParam(required = false) FoodDataSource dataSource,
+            @RequestParam(required = false) FoodProductQualityIssue qualityIssue,
+            @RequestParam(required = false) String query,
+            @RequestParam(required = false) CatalogPublicationStatus publicationStatus) {
+        return ResponseEntity.ok(foodProductReviewService.getProductReviewSummary(
+                verificationStatus, imageStatus, region, catalogType, dataSource,
+                qualityIssue, query, publicationStatus
         ));
     }
 
