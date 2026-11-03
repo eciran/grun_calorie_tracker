@@ -279,8 +279,7 @@ export function SubscriptionsView({ mode, onError, accessProfile }: { mode: Subs
 
   useEffect(() => {
     if (!accessPreview) return;
-    const totalQuota = (accessPreview.aiMonthlyQuota ?? 0) + (accessPreview.aiAddonQuota ?? 0);
-    const used = Math.max(0, totalQuota - (accessPreview.aiRemainingThisPeriod ?? 0));
+    const used = resolvedAiUsedThisPeriod(accessPreview);
     const planType = accessPreview.planType ?? accessPreview.plan ?? "FREE";
     setSubscriptionForm((current) => ({
       ...current,
@@ -706,7 +705,7 @@ export function SubscriptionsView({ mode, onError, accessProfile }: { mode: Subs
             </div>
             <div>
               <span>{locale === "tr" ? "Kullanılan AI kotası" : "AI quota used"}</span>
-              <strong>{formatValue(Math.max(0, (accessPreview?.aiMonthlyQuota ?? 0) + (accessPreview?.aiAddonQuota ?? 0) - (accessPreview?.aiRemainingThisPeriod ?? 0)))}</strong>
+              <strong>{formatValue(resolvedAiUsedThisPeriod(accessPreview))}</strong>
               <small>{locale === "tr" ? "Bu abonelik döneminde" : "In the current subscription period"}</small>
             </div>
           </div>
@@ -1348,6 +1347,17 @@ export function defaultAiQuota(planType?: string): number {
   if (planType === "PRO") return 150;
   if (planType === "PLUS") return 50;
   return 0;
+}
+
+export function resolvedAiUsedThisPeriod(access?: SubscriptionFeatureAccess | null): number {
+  if (!access) return 0;
+  if (access.aiUsedThisPeriod !== undefined && access.aiUsedThisPeriod !== null) {
+    return Math.max(0, access.aiUsedThisPeriod);
+  }
+  const totalQuota = (access.aiMonthlyQuota ?? 0)
+    + (access.aiUpgradeBonus ?? 0)
+    + (access.aiAddonQuota ?? 0);
+  return Math.max(0, totalQuota - (access.aiRemainingThisPeriod ?? totalQuota));
 }
 
 export function parseNonNegativeInt(value: string): number {

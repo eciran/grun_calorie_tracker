@@ -147,6 +147,10 @@ export type AdminAchievementDefinition = {
   code?: string;
   title?: string;
   description?: string;
+  titleEn?: string;
+  descriptionEn?: string;
+  titleTr?: string;
+  descriptionTr?: string;
   metricKey?: string;
   category?: string;
   tier?: string;
@@ -338,6 +342,14 @@ export type BrandedDuplicateSearchCollapseSummary = {
   revertedAt?: string;
 };
 
+export type BrandedDuplicateRecommendation = {
+  action?: "COLLAPSE_DUPLICATES" | "CREATE_PACKAGE_FAMILY" | "MANUAL_REVIEW";
+  confidence?: number;
+  suggestedSurvivorProductId?: number;
+  reason?: string;
+  blockers?: string[];
+};
+
 export type BrandedProductDuplicateGroup = {
   brandKey?: string;
   nameKey?: string;
@@ -358,6 +370,7 @@ export type BrandedProductDuplicateGroup = {
   storedDecision?: BrandedProductDuplicateDecision;
   decisionStale?: boolean;
   searchCollapse?: BrandedDuplicateSearchCollapseSummary;
+  recommendation?: BrandedDuplicateRecommendation;
   candidates?: BrandedProductDuplicateCandidate[];
 };
 
@@ -798,7 +811,11 @@ export type SubscriptionFeatureAccess = {
   adFree?: boolean;
   customFoodLibrary?: boolean;
   aiMonthlyQuota?: number;
+  aiUpgradeBonus?: number;
   aiAddonQuota?: number;
+  aiUsedThisPeriod?: number;
+  aiBaseRemainingThisPeriod?: number;
+  aiAddonRemainingThisPeriod?: number;
   aiRemainingThisPeriod?: number;
 };
 

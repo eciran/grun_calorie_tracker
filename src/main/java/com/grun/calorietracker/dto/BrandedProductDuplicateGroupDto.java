@@ -25,6 +25,7 @@ public record BrandedProductDuplicateGroupDto(
         BrandedProductDuplicateDecisionDto storedDecision,
         Boolean decisionStale,
         BrandedDuplicateSearchCollapseSummaryDto searchCollapse,
+        BrandedDuplicateRecommendationDto recommendation,
         List<BrandedProductDuplicateCandidateDto> candidates
 ) {
 }

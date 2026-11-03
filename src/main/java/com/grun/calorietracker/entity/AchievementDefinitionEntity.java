@@ -36,6 +36,12 @@ public class AchievementDefinitionEntity {
     @Column(nullable = false, length = 500)
     private String description;
 
+    @Column(name = "title_tr", length = 120)
+    private String titleTr;
+
+    @Column(name = "description_tr", length = 500)
+    private String descriptionTr;
+
     @Column(nullable = false, length = 80)
     private String metricKey;
 

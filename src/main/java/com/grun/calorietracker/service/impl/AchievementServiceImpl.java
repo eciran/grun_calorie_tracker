@@ -11,6 +11,7 @@ import com.grun.calorietracker.entity.UserAchievementEntity;
 import com.grun.calorietracker.entity.UserEntity;
 import com.grun.calorietracker.entity.UserGoalEntity;
 import com.grun.calorietracker.enums.FastingSessionStatus;
+import com.grun.calorietracker.enums.PreferredLanguage;
 import com.grun.calorietracker.repository.AchievementDefinitionRepository;
 import com.grun.calorietracker.repository.DeviceDataRepository;
 import com.grun.calorietracker.repository.ExerciseLogRepository;
@@ -87,7 +88,7 @@ public class AchievementServiceImpl implements AchievementService {
 
         EvaluationSnapshot snapshot = snapshot(user);
         List<AchievementDto> achievements = definitions.stream()
-                .map(definition -> evaluateDefinition(user, definition, existing, snapshot))
+                .map(definition -> evaluateDefinition(user, definition, existing, snapshot, user.getPreferredLanguage()))
                 .toList();
 
         int total = achievements.size();
@@ -105,7 +106,8 @@ public class AchievementServiceImpl implements AchievementService {
     private AchievementDto evaluateDefinition(UserEntity user,
                                               AchievementDefinitionEntity definition,
                                               Map<String, UserAchievementEntity> existing,
-                                              EvaluationSnapshot snapshot) {
+                                              EvaluationSnapshot snapshot,
+                                              PreferredLanguage preferredLanguage) {
         int target = Math.max(1, definition.getTargetValue());
         int progress = Math.min(target, progressFor(definition.getMetricKey(), snapshot));
         boolean unlocked = progress >= target;
@@ -129,8 +131,8 @@ public class AchievementServiceImpl implements AchievementService {
         int percent = (int) Math.round(Math.min(100.0, progress * 100.0 / target));
         return AchievementDto.builder()
                 .code(definition.getCode())
-                .title(definition.getTitle())
-                .description(definition.getDescription())
+                .title(localizedText(preferredLanguage, definition.getTitleTr(), definition.getTitle()))
+                .description(localizedText(preferredLanguage, definition.getDescriptionTr(), definition.getDescription()))
                 .metricKey(definition.getMetricKey())
                 .category(definition.getCategory())
                 .tier(definition.getTier())
@@ -140,6 +142,13 @@ public class AchievementServiceImpl implements AchievementService {
                 .unlocked(saved.getUnlocked())
                 .unlockedAt(saved.getUnlockedAt())
                 .build();
+    }
+
+    static String localizedText(PreferredLanguage language, String turkish, String english) {
+        if (language == PreferredLanguage.TR && turkish != null && !turkish.isBlank()) {
+            return turkish.trim();
+        }
+        return english;
     }
 
     private EvaluationSnapshot snapshot(UserEntity user) {

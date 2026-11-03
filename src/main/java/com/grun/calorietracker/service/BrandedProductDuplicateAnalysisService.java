@@ -7,6 +7,7 @@ import com.grun.calorietracker.dto.BrandedProductDuplicateGroupPageDto;
 import com.grun.calorietracker.dto.BrandedDuplicateSearchCollapseSummaryDto;
 import com.grun.calorietracker.exception.ResourceNotFoundException;
 import com.grun.calorietracker.service.support.BrandedDuplicateFingerprint;
+import com.grun.calorietracker.service.support.BrandedDuplicateRecommendationEngine;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.stereotype.Service;
@@ -462,6 +463,7 @@ public class BrandedProductDuplicateAnalysisService {
                     storedDecision,
                     storedDecision != null && !fingerprint.equals(storedDecision.candidateFingerprint()),
                     searchCollapse,
+                    BrandedDuplicateRecommendationEngine.classify(candidates),
                     List.copyOf(candidates)
             );
         }

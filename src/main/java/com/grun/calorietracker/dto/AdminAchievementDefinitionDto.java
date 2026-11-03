@@ -18,6 +18,10 @@ public class AdminAchievementDefinitionDto {
     private String code;
     private String title;
     private String description;
+    private String titleEn;
+    private String descriptionEn;
+    private String titleTr;
+    private String descriptionTr;
     private String metricKey;
     private AchievementCategory category;
     private AchievementTier tier;

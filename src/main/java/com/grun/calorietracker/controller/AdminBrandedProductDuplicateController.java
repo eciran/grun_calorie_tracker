@@ -46,6 +46,7 @@ public class AdminBrandedProductDuplicateController {
     private final BrandedProductDuplicateDecisionService decisionService;
     private final BrandedDuplicateSearchCollapseService collapseService;
     private final BrandedDuplicateSurvivorApplicationService survivorApplicationService;
+    private final com.grun.calorietracker.service.BrandedDuplicateBatchJobService batchJobService;
 
     @GetMapping
     @Operation(
@@ -155,5 +156,32 @@ public class AdminBrandedProductDuplicateController {
         return ResponseEntity.ok(collapseService.revert(
                 brandKey, nameKey, reason, userDetails == null ? null : userDetails.getUsername()
         ));
+    }
+
+    @GetMapping("/batch-jobs")
+    public ResponseEntity<java.util.List<com.grun.calorietracker.dto.BrandedDuplicateBatchJobDto>> getBatchJobs() {
+        return ResponseEntity.ok(batchJobService.recent());
+    }
+
+    @GetMapping("/batch-jobs/status")
+    public ResponseEntity<com.grun.calorietracker.dto.BrandedDuplicateBatchJobDto> getBatchJob(@RequestParam Long jobId) {
+        return ResponseEntity.ok(batchJobService.get(jobId));
+    }
+
+    @PostMapping("/batch-jobs")
+    public ResponseEntity<com.grun.calorietracker.dto.BrandedDuplicateBatchJobDto> startBatchJob(
+            @RequestBody @jakarta.validation.Valid com.grun.calorietracker.dto.BrandedDuplicateBatchJobRequestDto request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(batchJobService.start(request, userDetails == null ? null : userDetails.getUsername()));
+    }
+
+    @PostMapping("/batch-jobs/pause")
+    public ResponseEntity<com.grun.calorietracker.dto.BrandedDuplicateBatchJobDto> pauseBatchJob(@RequestParam Long jobId) {
+        return ResponseEntity.ok(batchJobService.pause(jobId));
+    }
+
+    @PostMapping("/batch-jobs/resume")
+    public ResponseEntity<com.grun.calorietracker.dto.BrandedDuplicateBatchJobDto> resumeBatchJob(@RequestParam Long jobId) {
+        return ResponseEntity.ok(batchJobService.resume(jobId));
     }
 }

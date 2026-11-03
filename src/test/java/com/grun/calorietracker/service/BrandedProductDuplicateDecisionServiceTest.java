@@ -91,7 +91,7 @@ class BrandedProductDuplicateDecisionServiceTest {
         return new BrandedProductDuplicateGroupDto(
                 "brand:1", "wispa", "Cadbury", "Wispa", 2, 2, 0,
                 1, 0, 2, 0, 2, 0, "REVIEW_DIFFERENT_GTIN", true,
-                FINGERPRINT, null, false, null, List.of(first, second)
+                FINGERPRINT, null, false, null, null, List.of(first, second)
         );
     }
 }

@@ -152,7 +152,7 @@ class BrandedDuplicateSearchCollapseServiceTest {
     private BrandedProductDuplicateGroupDto group(String fingerprint) {
         return new BrandedProductDuplicateGroupDto(
                 "cadbury", "wispa", "Cadbury", "Wispa", 3, 3, 0, 1, 0,
-                3, 0, 3, 0, "REVIEW_DIFFERENT_GTIN", false, fingerprint, null, false, null,
+                3, 0, 3, 0, "REVIEW_DIFFERENT_GTIN", false, fingerprint, null, false, null, null,
                 List.of(candidate(11L), candidate(12L), candidate(13L))
         );
     }

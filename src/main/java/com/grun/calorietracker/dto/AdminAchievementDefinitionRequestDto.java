@@ -26,6 +26,14 @@ public class AdminAchievementDefinitionRequestDto {
     private String description;
 
     @NotBlank
+    @Size(max = 120)
+    private String titleTr;
+
+    @NotBlank
+    @Size(max = 500)
+    private String descriptionTr;
+
+    @NotBlank
     @Size(max = 80)
     private String metricKey;
 

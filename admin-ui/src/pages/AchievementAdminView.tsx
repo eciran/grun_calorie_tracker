@@ -16,8 +16,10 @@ export const ACHIEVEMENT_TIERS = ["BRONZE", "SILVER", "GOLD"];
 
 export type AchievementForm = {
   code: string;
-  title: string;
-  description: string;
+  titleEn: string;
+  descriptionEn: string;
+  titleTr: string;
+  descriptionTr: string;
   metricKey: string;
   category: string;
   tier: string;
@@ -28,8 +30,10 @@ export type AchievementForm = {
 
 export const emptyAchievementForm: AchievementForm = {
   code: "",
-  title: "",
-  description: "",
+  titleEn: "",
+  descriptionEn: "",
+  titleTr: "",
+  descriptionTr: "",
   metricKey: "",
   category: "FOOD",
   tier: "BRONZE",
@@ -62,8 +66,10 @@ export function AchievementAdminView({ onError }: { onError: (message: string | 
     setSelected(definition);
     setForm({
       code: definition.code ?? "",
-      title: definition.title ?? "",
-      description: definition.description ?? "",
+      titleEn: definition.titleEn ?? definition.title ?? "",
+      descriptionEn: definition.descriptionEn ?? definition.description ?? "",
+      titleTr: definition.titleTr ?? "",
+      descriptionTr: definition.descriptionTr ?? "",
       metricKey: definition.metricKey ?? metricKeys[0] ?? "",
       category: definition.category ?? "FOOD",
       tier: definition.tier ?? "BRONZE",
@@ -82,8 +88,10 @@ export function AchievementAdminView({ onError }: { onError: (message: string | 
     event.preventDefault();
     const payload = {
       code: form.code.trim().toUpperCase(),
-      title: form.title.trim(),
-      description: form.description.trim(),
+      title: form.titleEn.trim(),
+      description: form.descriptionEn.trim(),
+      titleTr: form.titleTr.trim(),
+      descriptionTr: form.descriptionTr.trim(),
       metricKey: form.metricKey,
       category: form.category,
       tier: form.tier,
@@ -91,8 +99,8 @@ export function AchievementAdminView({ onError }: { onError: (message: string | 
       active: form.active === "true",
       sortOrder: Number(form.sortOrder)
     };
-    if (!payload.code || !payload.title || !payload.description || !payload.metricKey) {
-      onError(tx("Code, title, description and metric key are required.", "Kod, başlık, açıklama ve metrik alanları zorunludur."));
+    if (!payload.code || !payload.title || !payload.description || !payload.titleTr || !payload.descriptionTr || !payload.metricKey) {
+      onError(tx("Code, English and Turkish content, and metric key are required.", "Kod, İngilizce ve Türkçe içerikler ile metrik alanı zorunludur."));
       return;
     }
     setSaving(true);
@@ -163,8 +171,8 @@ export function AchievementAdminView({ onError }: { onError: (message: string | 
             />
           </label>
           <label>
-            {tx("Title", "Başlık")}
-            <input value={form.title} onChange={(event) => updateForm("title", event.target.value)} placeholder="30 Day Food Logger" />
+            {tx("English title", "İngilizce başlık")}
+            <input value={form.titleEn} onChange={(event) => updateForm("titleEn", event.target.value)} placeholder="30 Day Food Logger" />
           </label>
           <label>
             {tx("Metric", "Metrik")}
@@ -200,9 +208,17 @@ export function AchievementAdminView({ onError }: { onError: (message: string | 
               <option value="false">{tx("Inactive", "Etkin değil")}</option>
             </select>
           </label>
+          <label>
+            {tx("Turkish title", "Türkçe başlık")}
+            <input value={form.titleTr} onChange={(event) => updateForm("titleTr", event.target.value)} placeholder="30 Günlük Beslenme Kaydı" />
+          </label>
           <label className="wide-field">
-            {tx("Description", "Açıklama")}
-            <input value={form.description} onChange={(event) => updateForm("description", event.target.value)} placeholder="Describe what the user needs to do." />
+            {tx("English description", "İngilizce açıklama")}
+            <input value={form.descriptionEn} onChange={(event) => updateForm("descriptionEn", event.target.value)} placeholder="Describe what the user needs to do." />
+          </label>
+          <label className="wide-field">
+            {tx("Turkish description", "Türkçe açıklama")}
+            <input value={form.descriptionTr} onChange={(event) => updateForm("descriptionTr", event.target.value)} placeholder="Kullanıcının ne yapması gerektiğini açıklayın." />
           </label>
           <div className="form-actions">
             <button className="ghost-button" onClick={() => {
@@ -221,8 +237,8 @@ export function AchievementAdminView({ onError }: { onError: (message: string | 
         columns={[tx("Achievement", "Başarım"), tx("Metric", "Metrik"), tx("Target", "Hedef"), tx("State", "Durum"), tx("Order", "Sıra")]}
         rows={definitions.map((definition) => [
           <div className="entity-cell">
-            <strong>{definition.title ?? definition.code ?? "-"}</strong>
-            <small>{definition.code ?? "-"} | {definition.description ?? "-"}</small>
+            <strong>{locale === "tr" ? (definition.titleTr ?? definition.titleEn ?? definition.title) : (definition.titleEn ?? definition.title)}</strong>
+            <small>{definition.code ?? "-"} | {locale === "tr" ? (definition.descriptionTr ?? definition.descriptionEn ?? definition.description) : (definition.descriptionEn ?? definition.description)}</small>
           </div>,
           <div className="badge-stack">
             <Badge value={definition.metricKey} />

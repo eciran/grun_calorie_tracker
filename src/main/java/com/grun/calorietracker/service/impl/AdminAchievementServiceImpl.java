@@ -100,6 +100,8 @@ public class AdminAchievementServiceImpl implements AdminAchievementService {
     private void apply(AchievementDefinitionEntity entity, AdminAchievementDefinitionRequestDto request) {
         entity.setTitle(request.getTitle().trim());
         entity.setDescription(request.getDescription().trim());
+        entity.setTitleTr(request.getTitleTr().trim());
+        entity.setDescriptionTr(request.getDescriptionTr().trim());
         entity.setMetricKey(request.getMetricKey().trim());
         entity.setCategory(request.getCategory());
         entity.setTier(request.getTier());
@@ -124,6 +126,10 @@ public class AdminAchievementServiceImpl implements AdminAchievementService {
                 .code(entity.getCode())
                 .title(entity.getTitle())
                 .description(entity.getDescription())
+                .titleEn(entity.getTitle())
+                .descriptionEn(entity.getDescription())
+                .titleTr(entity.getTitleTr())
+                .descriptionTr(entity.getDescriptionTr())
                 .metricKey(entity.getMetricKey())
                 .category(entity.getCategory())
                 .tier(entity.getTier())

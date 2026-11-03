@@ -9,6 +9,7 @@ assert.match(app, /freePromotion/);
 assert.match(app, /GROWTH_READ/);
 assert.match(view, /GROWTH_MANAGE/);
 assert.match(view, /\/api\/v1\/admin\/free-promotion/);
+assert.match(view, /const QUOTA_API = `\$\{API\}\/quota-exhausted`/);
 for (const field of ["enabled", "minimumIntervalHours", "maxImpressions24h", "dismissCooldownHours", "minimumSessionNumber", "rolloutPercentage", "changeReason", "version"]) {
   assert.match(view, new RegExp(field), `Missing managed field: ${field}`);
 }
@@ -16,5 +17,7 @@ assert.match(view, /0% is a second kill switch/);
 assert.match(view, /No automatic paywall will be shown/);
 assert.match(view, /changed in another admin session/);
 assert.match(view, /Required audit reason/);
+assert.match(view, /active Plus and Pro users with zero remaining credits/);
+assert.match(view, /Store prices still come from RevenueCat on the device/);
 
 console.log("Free promotion admin policy checks passed.");
